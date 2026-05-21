@@ -5,6 +5,8 @@ import type { Program, ProgramAccess, ProgramAccessRole } from "@/lib/models/pro
 import type { EffectiveRole, InternalRole } from "@/lib/auth/roles";
 import { hasAnyRole, normalizeEmail } from "@/lib/auth/roles";
 
+const ANALYTICS_ROLES = ["drg-admin", "drg-program-owner", "drg-staff"] as const;
+
 export async function requireUser() {
   const session = await auth();
 
@@ -23,6 +25,14 @@ export async function requireInternalRole(allowedRoles: readonly InternalRole[])
   }
 
   return user;
+}
+
+export async function requireAnalyticsUser() {
+  return requireInternalRole(ANALYTICS_ROLES);
+}
+
+export function canViewAnalytics(user: { internalRoles: InternalRole[] }) {
+  return hasAnyRole(user.internalRoles, ANALYTICS_ROLES);
 }
 
 export function getEffectiveRolesForProgram(

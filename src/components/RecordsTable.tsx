@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Autocomplete from "@mui/material/Autocomplete";
 import Table from "@mui/material/Table";
@@ -106,6 +106,7 @@ interface RecordsTableProps {
   editMode?: boolean;
   showSearch?: boolean;
   showProgramColumn?: boolean;
+  toolbarActions?: ReactNode;
   documentCountsByDeliverableId?: Record<string, number>;
 }
 
@@ -116,6 +117,7 @@ export default function RecordsTable({
   editMode = false,
   showSearch = false,
   showProgramColumn = false,
+  toolbarActions,
   documentCountsByDeliverableId = {},
 }: RecordsTableProps) {
   void documentCountsByDeliverableId;
@@ -331,8 +333,9 @@ export default function RecordsTable({
             Displaying {filtered.length} {recordLabel}
           </Typography>
         </Box>
-        {showSearch && (
-          <Box sx={{ display: "flex", alignItems: "center", ml: "auto", flexWrap: "wrap" }}>
+        {(showSearch || toolbarActions) && (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, ml: "auto", flexWrap: "wrap", justifyContent: "flex-end" }}>
+            {showSearch && (
             <TextField
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
@@ -349,6 +352,8 @@ export default function RecordsTable({
                 },
               }}
             />
+            )}
+            {toolbarActions}
           </Box>
         )}
       </Box>

@@ -85,17 +85,6 @@ interface AssignedToOption {
   displayName?: string;
 }
 
-function getDisplayNameFromEmail(email: string) {
-  const localPart = email.split("@")[0]?.trim();
-  if (!localPart) return email;
-
-  return localPart
-    .split(/[._-]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
 export default function DeliverableDetail({
   deliverable: d,
   documents,
@@ -172,7 +161,8 @@ export default function DeliverableDetail({
         normalizeEmail(entry.email) === normalizeEmail(d.assignedToEmail)
     )?.displayName ??
     assignedToDirectoryName ??
-    (d.assignedTo.includes("@") ? getDisplayNameFromEmail(d.assignedTo) : d.assignedTo);
+    d.assignedToEmail ??
+    d.assignedTo;
   const assignedToOptions = useMemo(() => {
     const options = new Map<string, AssignedToOption>();
 

@@ -13,7 +13,7 @@ const REVIEWABLE_STATUSES = new Set(["Submitted", "Returned", "Not Submitted"]);
 
 export async function POST(
   _request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<unknown> }
 ) {
   const session = await auth();
 
@@ -21,7 +21,8 @@ export async function POST(
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   }
 
-  const { id } = await params;
+  const routeParams = (await params) as { id?: string };
+  const id = routeParams.id ?? "";
 
   try {
     const deliverable = await getVisibleDeliverableById(id, session.user);

@@ -414,18 +414,18 @@ export default function ProgramDetailView({
 
         <Box sx={{ p: 2.5 }}>
           {activeTab === 0 && (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                <CreateDeliverableDialog
-                  programs={[program]}
-                  deliverableTypes={deliverableTypes}
-                  defaultProgramId={program.id}
-                />
-              </Box>
+            <Box>
               <RecordsTable
                 deliverables={deliverables}
                 programs={[program]}
                 documentCountsByDeliverableId={documentCountsByDeliverableId}
+                toolbarActions={
+                  <CreateDeliverableDialog
+                    programs={[program]}
+                    deliverableTypes={deliverableTypes}
+                    defaultProgramId={program.id}
+                  />
+                }
               />
             </Box>
           )}

@@ -32,10 +32,13 @@ const NAV_ITEMS = [
 
 export default function SidebarNav() {
   const pathname = usePathname();
-  const { role } = useRole();
+  const { role, roles } = useRole();
   const canSubmit = role
     ? ["drg-admin", "drg-program-owner", "drg-staff", "external-reviewer"].includes(role)
     : false;
+  const canViewAnalytics = roles.some((currentRole) =>
+    ["drg-admin", "drg-program-owner", "drg-staff"].includes(currentRole)
+  );
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -43,6 +46,7 @@ export default function SidebarNav() {
         {NAV_ITEMS.map((item, i) => {
           if (item === null) return <Divider key={`divider-${i}`} />;
           const { label, href, icon: Icon } = item;
+          if (href === "/analytics" && !canViewAnalytics) return null;
           const active =
             href === "/"
               ? pathname === href

@@ -173,11 +173,9 @@ export default function DocumentDetail({
   const canDelete = canDeleteDocumentsForProgram(doc.programId);
   const uploadLog = accessLogs.find((event) => event.action === "Upload");
   const uploadedBy =
-    uploadLog?.actorName && uploadLog.actorName.length > doc.uploadedBy.length
+    uploadLog?.actorName && !uploadLog.actorName.includes("@")
       ? uploadLog.actorName
-      : doc.uploadedBy.includes("@")
-      ? uploadLog?.actorName || doc.uploadedBy
-      : doc.uploadedBy;
+      : doc.uploadedBy || doc.uploadedByEmail;
   const uploadedByEmail = doc.uploadedByEmail || uploadLog?.actorEmail || doc.uploadedBy;
 
   async function handleDelete() {

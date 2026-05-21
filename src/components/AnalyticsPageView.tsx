@@ -14,9 +14,11 @@ import Select from "@mui/material/Select";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import type { AnalyticsOverview } from "@/lib/analytics";
@@ -83,7 +85,24 @@ export default function AnalyticsPageView({ initialOverview }: AnalyticsPageView
   const [documentRole, setDocumentRole] = useState(
     initialOverview.filters.documentRole ?? ""
   );
+  const [showAllDeliverableTypes, setShowAllDeliverableTypes] = useState(false);
+  const [showAllMonthlySubmissions, setShowAllMonthlySubmissions] = useState(false);
+  const [showAllProgramAnalytics, setShowAllProgramAnalytics] = useState(false);
+  const [showAllUserAnalytics, setShowAllUserAnalytics] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const visibleDeliverableTypes = showAllDeliverableTypes
+    ? overview.deliverableTypeAnalytics
+    : overview.deliverableTypeAnalytics.slice(0, 4);
+  const visibleMonthlySubmissions = showAllMonthlySubmissions
+    ? overview.monthlySubmissions
+    : overview.monthlySubmissions.slice(0, 4);
+  const visibleProgramAnalytics = showAllProgramAnalytics
+    ? overview.programAnalytics
+    : overview.programAnalytics.slice(0, 4);
+  const visibleUserAnalytics = showAllUserAnalytics
+    ? overview.userAnalytics
+    : overview.userAnalytics.slice(0, 4);
 
   const query = useMemo(
     () =>
@@ -289,55 +308,21 @@ export default function AnalyticsPageView({ initialOverview }: AnalyticsPageView
       </Box>
 
       <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" }, gap: 2 }}>
-        <AnalyticsTable title="User Analytics" empty="No user activity found for these filters.">
-          <TableHead>
-            <TableRow>
-              <TableCell>User</TableCell>
-              <TableCell align="right">Documents</TableCell>
-              <TableCell align="right">Projects</TableCell>
-              <TableCell align="right">Assigned</TableCell>
-              <TableCell align="right">Completed</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {overview.userAnalytics.slice(0, 10).map((row) => (
-              <TableRow key={`${row.email}-${row.name}`}>
-                <TableCell>{row.name || row.email}</TableCell>
-                <TableCell align="right">{row.documentsSubmitted}</TableCell>
-                <TableCell align="right">{row.projectsInvolved}</TableCell>
-                <TableCell align="right">{row.assignedDeliverables}</TableCell>
-                <TableCell align="right">{row.completedDeliverables}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </AnalyticsTable>
-
-        <AnalyticsTable title="Program Analytics" empty="No program activity found for these filters.">
-          <TableHead>
-            <TableRow>
-              <TableCell>Program</TableCell>
-              <TableCell align="right">Documents</TableCell>
-              <TableCell align="right">Created</TableCell>
-              <TableCell align="right">Completed</TableCell>
-              <TableCell align="right">Overdue</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {overview.programAnalytics.slice(0, 10).map((row) => (
-              <TableRow key={row.id}>
-                <TableCell>{row.programNumber}</TableCell>
-                <TableCell align="right">{row.documentsSubmitted}</TableCell>
-                <TableCell align="right">{row.deliverablesCreated}</TableCell>
-                <TableCell align="right">{row.deliverablesCompleted}</TableCell>
-                <TableCell align="right">{row.overdue}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </AnalyticsTable>
-      </Box>
-
-      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" }, gap: 2 }}>
-        <AnalyticsTable title="Deliverable Types" empty="No deliverables found for these filters.">
+        <AnalyticsTable
+          title="Deliverable Types"
+          empty="No deliverables found for these filters."
+          scrollable={false}
+          footer={
+            overview.deliverableTypeAnalytics.length > 4 ? (
+              <Button
+                size="small"
+                onClick={() => setShowAllDeliverableTypes((current) => !current)}
+              >
+                {showAllDeliverableTypes ? "Show fewer" : "View all"}
+              </Button>
+            ) : null
+          }
+        >
           <TableHead>
             <TableRow>
               <TableCell>Type</TableCell>
@@ -346,7 +331,7 @@ export default function AnalyticsPageView({ initialOverview }: AnalyticsPageView
             </TableRow>
           </TableHead>
           <TableBody>
-            {overview.deliverableTypeAnalytics.map((row) => (
+            {visibleDeliverableTypes.map((row) => (
               <TableRow key={row.type}>
                 <TableCell>{row.type}</TableCell>
                 <TableCell align="right">{row.total}</TableCell>
@@ -356,7 +341,21 @@ export default function AnalyticsPageView({ initialOverview }: AnalyticsPageView
           </TableBody>
         </AnalyticsTable>
 
-        <AnalyticsTable title="Submissions by Month" empty="No monthly submissions found.">
+        <AnalyticsTable
+          title="Submissions by Month"
+          empty="No monthly submissions found."
+          scrollable={false}
+          footer={
+            overview.monthlySubmissions.length > 4 ? (
+              <Button
+                size="small"
+                onClick={() => setShowAllMonthlySubmissions((current) => !current)}
+              >
+                {showAllMonthlySubmissions ? "Show fewer" : "View all"}
+              </Button>
+            ) : null
+          }
+        >
           <TableHead>
             <TableRow>
               <TableCell>Month</TableCell>
@@ -364,7 +363,7 @@ export default function AnalyticsPageView({ initialOverview }: AnalyticsPageView
             </TableRow>
           </TableHead>
           <TableBody>
-            {overview.monthlySubmissions.map((row) => (
+            {visibleMonthlySubmissions.map((row) => (
               <TableRow key={row.month}>
                 <TableCell>{formatMonth(row.month)}</TableCell>
                 <TableCell align="right">{row.documentsSubmitted}</TableCell>
@@ -373,6 +372,94 @@ export default function AnalyticsPageView({ initialOverview }: AnalyticsPageView
           </TableBody>
         </AnalyticsTable>
       </Box>
+
+      <AnalyticsTable
+        title="Program Analytics"
+        empty="No program activity found for these filters."
+        footer={
+          overview.programAnalytics.length > 4 ? (
+            <Button
+              size="small"
+              onClick={() => setShowAllProgramAnalytics((current) => !current)}
+            >
+              {showAllProgramAnalytics ? "Show fewer" : "View all"}
+            </Button>
+          ) : null
+        }
+      >
+        <TableHead>
+          <TableRow>
+            <TableCell>Program</TableCell>
+            <TableCell align="right">Documents</TableCell>
+            <TableCell align="right">Deliverables</TableCell>
+            <TableCell align="right">Created</TableCell>
+            <TableCell align="right">Pending Review</TableCell>
+            <TableCell align="right">Returned</TableCell>
+            <TableCell align="right">Pending Ack</TableCell>
+            <TableCell align="right">Completed</TableCell>
+            <TableCell align="right">Overdue</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {visibleProgramAnalytics.map((row) => (
+            <TableRow key={row.id}>
+              <TableCell>{row.programNumber}</TableCell>
+              <TableCell align="right">{row.documentsSubmitted}</TableCell>
+              <TableCell align="right">{row.deliverablesTotal}</TableCell>
+              <TableCell align="right">{row.deliverablesCreated}</TableCell>
+              <TableCell align="right">{row.pendingReview}</TableCell>
+              <TableCell align="right">{row.deliverablesReturned}</TableCell>
+              <TableCell align="right">{row.deliverablesPendingAcknowledgment}</TableCell>
+              <TableCell align="right">{row.deliverablesCompleted}</TableCell>
+              <TableCell align="right">{row.overdue}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </AnalyticsTable>
+
+      <AnalyticsTable
+        title="User Analytics"
+        empty="No user activity found for these filters."
+        footer={
+          overview.userAnalytics.length > 4 ? (
+            <Button
+              size="small"
+              onClick={() => setShowAllUserAnalytics((current) => !current)}
+            >
+              {showAllUserAnalytics ? "Show fewer" : "View all"}
+            </Button>
+          ) : null
+        }
+      >
+        <TableHead>
+          <TableRow>
+            <TableCell>Name</TableCell>
+            <TableCell align="right">Documents</TableCell>
+            <TableCell align="right">Projects</TableCell>
+            <TableCell align="right">Assigned</TableCell>
+            <TableCell align="right">Completed</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {visibleUserAnalytics.map((row) => (
+            <TableRow key={`${row.email}-${row.name}`}>
+              <TableCell sx={{ fontWeight: 600 }}>
+                {row.email ? (
+                  <Tooltip title={row.email}>
+                    <Box component="span">{row.name || row.email}</Box>
+                  </Tooltip>
+                ) : (
+                  row.name
+                )}
+              </TableCell>
+              <TableCell align="right">{row.documentsSubmitted}</TableCell>
+              <TableCell align="right">{row.projectsInvolved}</TableCell>
+              <TableCell align="right">{row.assignedDeliverables}</TableCell>
+              <TableCell align="right">{row.completedDeliverables}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </AnalyticsTable>
 
       <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
         <Button
@@ -398,10 +485,16 @@ function AnalyticsTable({
   title,
   empty,
   children,
+  footer,
+  scrollable = true,
+  minWidth = 760,
 }: {
   title: string;
   empty: string;
   children: ReactNode;
+  footer?: ReactNode;
+  scrollable?: boolean;
+  minWidth?: number;
 }) {
   const tableBody = Array.isArray(children) ? children[1] : undefined;
   const hasRows =
@@ -420,7 +513,22 @@ function AnalyticsTable({
         </Typography>
       </Box>
       {hasRows ? (
-        <Table size="small">{children}</Table>
+        <>
+          {scrollable ? (
+            <TableContainer sx={{ overflowX: "auto" }}>
+              <Table size="small" sx={{ minWidth }}>
+                {children}
+              </Table>
+            </TableContainer>
+          ) : (
+            <Table size="small">{children}</Table>
+          )}
+          {footer ? (
+            <Box sx={{ display: "flex", justifyContent: "flex-end", px: 1.5, py: 1 }}>
+              {footer}
+            </Box>
+          ) : null}
+        </>
       ) : (
         <Typography variant="body2" sx={{ color: "text.secondary", p: 2 }}>
           {empty}

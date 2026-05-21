@@ -3,6 +3,7 @@ import { listVisibleApprovals } from "@/lib/dataverse/approvals";
 import { listVisibleDeliverables } from "@/lib/dataverse/deliverables";
 import { listVisibleDocuments } from "@/lib/dataverse/documents";
 import { listVisiblePrograms } from "@/lib/dataverse/programs";
+import { getEntraUserPrincipalsByEmail } from "@/lib/graph/users";
 import type { DataverseUser } from "@/lib/dataverse/client";
 import type { Deliverable } from "@/lib/models/deliverable";
 import type { DeliverableDocument, DocumentRole } from "@/lib/models/document";
@@ -41,8 +42,11 @@ export type ProgramAnalyticsRow = {
   name: string;
   programNumber: string;
   documentsSubmitted: number;
+  deliverablesTotal: number;
   deliverablesCreated: number;
   deliverablesCompleted: number;
+  deliverablesReturned: number;
+  deliverablesPendingAcknowledgment: number;
   pendingReview: number;
   overdue: number;
 };
@@ -105,12 +109,11 @@ function getDocumentUserKey(document: DeliverableDocument) {
 }
 
 function getUserNameFromEmail(email: string) {
-  const localPart = email.split("@")[0] ?? email;
-  return localPart
-    .split(/[._-]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+  return email;
+}
+
+function isFallbackUserName(name: string, key: string) {
+  return !name || normalizeEmail(name) === normalizeEmail(key) || name === getUserNameFromEmail(key);
 }
 
 function addUser(
@@ -121,15 +124,22 @@ function addUser(
   const normalizedKey = normalizeEmail(key) || key?.trim();
   if (!normalizedKey) return undefined;
 
+  const incomingName = name?.trim();
+
   if (!users.has(normalizedKey)) {
     users.set(normalizedKey, {
       email: normalizedKey.includes("@") ? normalizedKey : "",
-      name: name?.trim() || getUserNameFromEmail(normalizedKey),
+      name: incomingName || getUserNameFromEmail(normalizedKey),
       documentsSubmitted: 0,
       projectsInvolved: 0,
       assignedDeliverables: 0,
       completedDeliverables: 0,
     });
+  } else if (incomingName) {
+    const existing = users.get(normalizedKey);
+    if (existing && isFallbackUserName(existing.name, normalizedKey)) {
+      existing.name = incomingName;
+    }
   }
 
   return users.get(normalizedKey);
@@ -284,7 +294,7 @@ export async function getAnalyticsOverview(
     if (filters.programId && program.id !== filters.programId) continue;
     for (const entry of program.access) {
       if (!entry.isActive) continue;
-      const row = addUser(userRows, entry.email, entry.displayName || entry.email);
+      const row = addUser(userRows, entry.email, entry.displayName);
       if (!row) continue;
       const key = row.email || row.name;
       userProjects.set(key, userProjects.get(key) ?? new Set());
@@ -294,11 +304,27 @@ export async function getAnalyticsOverview(
 
   for (const approval of approvals) {
     if (filters.programId && approval.programId !== filters.programId) continue;
-    const row = addUser(userRows, approval.reviewerEmail, approval.reviewerEmail);
+    const row = addUser(userRows, approval.reviewerEmail, undefined);
     if (!row) continue;
     const key = row.email || row.name;
     userProjects.set(key, userProjects.get(key) ?? new Set());
     userProjects.get(key)?.add(approval.programId);
+  }
+
+  const entraEmails = [...userRows.values()]
+    .map((row) => row.email)
+    .filter(Boolean);
+
+  try {
+    const entraUsers = await getEntraUserPrincipalsByEmail(entraEmails);
+    for (const row of userRows.values()) {
+      const entraUser = entraUsers.get(normalizeEmail(row.email));
+      if (entraUser?.displayName) {
+        row.name = entraUser.displayName;
+      }
+    }
+  } catch (error) {
+    console.warn("Failed to load Entra display names for analytics users", error);
   }
 
   for (const [key, projects] of userProjects.entries()) {
@@ -319,6 +345,7 @@ export async function getAnalyticsOverview(
         documentsSubmitted: documentsInRange.filter(
           (document) => document.programId === program.id
         ).length,
+        deliverablesTotal: programDeliverables.length,
         deliverablesCreated: programDeliverables.filter((deliverable) =>
           isWithinRange(getCreatedDate(deliverable), start, end)
         ).length,
@@ -330,6 +357,12 @@ export async function getAnalyticsOverview(
         pendingReview: programDeliverables.filter((deliverable) =>
           PENDING_REVIEW_STATUSES.has(deliverable.status)
         ).length,
+        deliverablesReturned: programDeliverables.filter(
+          (deliverable) => deliverable.status === "Returned"
+        ).length,
+        deliverablesPendingAcknowledgment: programDeliverables.filter(
+          (deliverable) => deliverable.status === "Pending Acknowledgment"
+        ).length,
         overdue: programDeliverables.filter((deliverable) =>
           deliverable.status.startsWith("Overdue")
         ).length,
@@ -338,8 +371,11 @@ export async function getAnalyticsOverview(
     .filter(
       (program) =>
         program.documentsSubmitted ||
+        program.deliverablesTotal ||
         program.deliverablesCreated ||
         program.deliverablesCompleted ||
+        program.deliverablesReturned ||
+        program.deliverablesPendingAcknowledgment ||
         program.pendingReview ||
         program.overdue
     );

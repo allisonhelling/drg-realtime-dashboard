@@ -207,6 +207,34 @@ export default function DocumentsTable({
     () => Object.fromEntries(programs.map((program) => [program.id, program.name])),
     [programs]
   );
+  const availableDocuments = useMemo(
+    () => documents.filter((document) => availableProgramIds.has(document.programId)),
+    [availableProgramIds, documents]
+  );
+  const programCounts = useMemo(
+    () =>
+      availableDocuments.reduce<Record<string, number>>((counts, document) => {
+        counts[document.programId] = (counts[document.programId] ?? 0) + 1;
+        return counts;
+      }, {}),
+    [availableDocuments]
+  );
+  const statusCounts = useMemo(
+    () =>
+      availableDocuments.reduce<Record<string, number>>((counts, document) => {
+        counts[document.status] = (counts[document.status] ?? 0) + 1;
+        return counts;
+      }, {}),
+    [availableDocuments]
+  );
+  const typeCounts = useMemo(
+    () =>
+      availableDocuments.reduce<Record<string, number>>((counts, document) => {
+        counts[document.fileType] = (counts[document.fileType] ?? 0) + 1;
+        return counts;
+      }, {}),
+    [availableDocuments]
+  );
   const canSeeAccessLog =
     role === "drg-admin" || role === "drg-program-owner" || role === "drg-staff";
 
@@ -238,6 +266,7 @@ export default function DocumentsTable({
   const showDeleteActions = filtered.some((document) =>
     canDeleteDocumentsForProgram(document.programId)
   );
+  const recordLabel = filtered.length === 1 ? "record" : "records";
 
   // Has to match real column count or the access log row breaks
   const colSpan = 8 + (canSeeAccessLog ? 1 : 0) + (showDeleteActions ? 1 : 0);
@@ -290,9 +319,11 @@ export default function DocumentsTable({
                 label="Program"
                 onChange={(e: SelectChangeEvent) => setProgramFilter(e.target.value)}
               >
-                <MenuItem value="All">All Programs</MenuItem>
+                <MenuItem value="All">All Programs ({availableDocuments.length})</MenuItem>
                 {availablePrograms.map((p) => (
-                  <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                  <MenuItem key={p.id} value={p.id}>
+                    {p.name} ({programCounts[p.id] ?? 0})
+                  </MenuItem>
                 ))}
               </Select>
             </FormControl>
@@ -306,9 +337,11 @@ export default function DocumentsTable({
               label="Status"
               onChange={(e: SelectChangeEvent) => setStatusFilter(e.target.value)}
             >
-              <MenuItem value="All">All Statuses</MenuItem>
+              <MenuItem value="All">All Statuses ({availableDocuments.length})</MenuItem>
               {DOCUMENT_STATUSES.map((status) => (
-                <MenuItem key={status} value={status}>{status}</MenuItem>
+                <MenuItem key={status} value={status}>
+                  {status} ({statusCounts[status] ?? 0})
+                </MenuItem>
               ))}
             </Select>
           </FormControl>
@@ -321,12 +354,18 @@ export default function DocumentsTable({
               label="Type"
               onChange={(e: SelectChangeEvent) => setTypeFilter(e.target.value)}
             >
-              <MenuItem value="All">All Types</MenuItem>
+              <MenuItem value="All">All Types ({availableDocuments.length})</MenuItem>
               {FILE_TYPES.map((type) => (
-                <MenuItem key={type} value={type}>{type}</MenuItem>
+                <MenuItem key={type} value={type}>
+                  {type} ({typeCounts[type] ?? 0})
+                </MenuItem>
               ))}
             </Select>
           </FormControl>
+
+          <Typography variant="body2" sx={{ color: "text.secondary", alignSelf: "center" }}>
+            Displaying {filtered.length} {recordLabel}
+          </Typography>
 
           {showArchivedToggle && (
             <FormControlLabel

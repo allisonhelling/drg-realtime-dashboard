@@ -189,17 +189,6 @@ function toDataverseOptionalUrl(value: string) {
   return trimmed;
 }
 
-function getDisplayNameFromEmail(email: string) {
-  const localPart = email.split("@")[0]?.trim();
-  if (!localPart) return email;
-
-  return localPart
-    .split(/[._-]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
 async function findSystemUserIdByEmail(email: string) {
   const normalizedEmail = normalizeEmail(email);
   if (!normalizedEmail) return undefined;
@@ -330,7 +319,8 @@ function mapDocumentRow(row: DataverseDocumentRow): DeliverableDocument {
     uploadedByEmail: row.drg_uploadedbyemail ?? "",
     uploadedBy:
       getFormattedValue(row, "_drg_uploadedby_value") ??
-      getDisplayNameFromEmail(row.drg_uploadedbyemail ?? ""),
+      row.drg_uploadedbyemail ??
+      "",
     uploadedAt: row.drg_uploadedon ?? "",
     status: toUiStatus(getFormattedValue(row, "drg_status")),
     sizeKb: row.drg_filesizekb ?? 0,

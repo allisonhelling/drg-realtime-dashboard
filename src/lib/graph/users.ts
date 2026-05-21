@@ -80,6 +80,10 @@ function escapeGraphFilterValue(value: string) {
   return value.trim().toLowerCase().replace(/'/g, "''");
 }
 
+function normalizePrincipalEmail(value: string) {
+  return value.trim().toLowerCase();
+}
+
 function getConfiguredProgramAccessGroups() {
   return [
     {
@@ -318,6 +322,57 @@ export async function getProgramCollaboratorPrincipal(
     accessRole,
     eligibleAccessRoles,
   };
+}
+
+export async function getEntraUserPrincipalsByEmail(
+  emails: readonly string[]
+): Promise<Map<string, EntraUserPrincipal>> {
+  const uniqueEmails = [...new Set(emails.map(normalizePrincipalEmail).filter(Boolean))];
+  const principals = new Map<string, EntraUserPrincipal>();
+
+  if (uniqueEmails.length === 0) return principals;
+
+  const token = await getGraphToken();
+
+  await Promise.all(
+    uniqueEmails.map(async (email) => {
+      const normalizedEmail = escapeGraphFilterValue(email);
+      const usersRes = await fetch(
+        `https://graph.microsoft.com/v1.0/users?$select=id,mail,userPrincipalName,displayName&$top=1&$filter=mail eq '${normalizedEmail}' or userPrincipalName eq '${normalizedEmail}'`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          cache: "no-store",
+        }
+      );
+
+      if (!usersRes.ok) {
+        throw new Error(`Failed to load Entra user: ${await usersRes.text()}`);
+      }
+
+      const usersJson = (await usersRes.json()) as {
+        value?: Array<{
+          id: string;
+          mail?: string | null;
+          userPrincipalName?: string | null;
+          displayName?: string | null;
+        }>;
+      };
+      const user = usersJson.value?.[0];
+      const emailAddress = user ? getPrincipalEmail(user) : "";
+
+      if (!user || !emailAddress) return;
+
+      principals.set(normalizePrincipalEmail(emailAddress), {
+        id: user.id,
+        email: emailAddress,
+        displayName: user.displayName ?? emailAddress,
+      });
+    })
+  );
+
+  return principals;
 }
 
 export async function getExternalReviewerPrincipal(
