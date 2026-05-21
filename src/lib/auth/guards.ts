@@ -132,11 +132,10 @@ export function canWorkProgram(
   if (isProgramArchived(program)) return false;
   if (user.internalRoles.includes("drg-admin")) return true;
 
-  if (user.internalRoles.includes("drg-program-owner")) {
-    return hasActiveProgramAccessWithRole(program, user.email, ["Program Owner"]);
-  }
-
-  if (user.internalRoles.includes("drg-staff")) {
+  if (
+    user.internalRoles.includes("drg-program-owner") ||
+    user.internalRoles.includes("drg-staff")
+  ) {
     return hasActiveProgramAccessWithRole(program, user.email, [
       "DRG Staff",
       "Program Owner",
@@ -165,7 +164,12 @@ export function canCreateDeliverableDraft(
   program: Program
 ) {
   if (isProgramArchived(program)) return false;
-  if (!user.internalRoles.includes("drg-staff")) return false;
+  if (
+    !user.internalRoles.includes("drg-staff") &&
+    !user.internalRoles.includes("drg-program-owner")
+  ) {
+    return false;
+  }
 
   return hasActiveProgramAccessWithRole(program, user.email, [
     "DRG Staff",

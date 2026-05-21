@@ -205,11 +205,10 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
       const isCurrentUser = normalizeEmail(entry.email) === currentUserEmail;
       if (!entry.isActive || !isCurrentUser) return false;
 
-      if (internalRoles.includes('drg-program-owner')) {
-        return entry.accessRole === 'Program Owner';
-      }
-
-      if (internalRoles.includes('drg-staff')) {
+      if (
+        internalRoles.includes('drg-program-owner') ||
+        internalRoles.includes('drg-staff')
+      ) {
         return (
           entry.accessRole === 'DRG Staff' ||
           entry.accessRole === 'Program Owner'
@@ -233,11 +232,10 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
       const isCurrentUser = normalizeEmail(entry.email) === currentUserEmail;
       if (!entry.isActive || !isCurrentUser) return false;
 
-      if (internalRoles.includes('drg-program-owner')) {
-        return entry.accessRole === 'Program Owner';
-      }
-
-      if (internalRoles.includes('drg-staff')) {
+      if (
+        internalRoles.includes('drg-program-owner') ||
+        internalRoles.includes('drg-staff')
+      ) {
         return (
           entry.accessRole === 'DRG Staff' ||
           entry.accessRole === 'Program Owner'

@@ -68,7 +68,7 @@ src/
 
 Production data access runs through server-only services in `src/lib/dataverse/`, `src/lib/sharepoint/`, `src/lib/graph/`, and `src/lib/power-automate/`. Mock connectors remain only as fallback fixtures when Microsoft service credentials are not configured.
 
-Authentication uses Auth.js with the Microsoft Entra ID provider. Internal roles come from Entra app roles or group claims, while `gov-reviewer` is derived from a matching email in a program's access list. External reviewers must already exist in the tenant and belong to the configured external reviewer group before program access can be granted.
+Authentication uses Auth.js with the Microsoft Entra ID provider. Internal roles come from Entra app roles or group claims, while program-specific permissions come from `drg_programaccess` rows. The Entra program owner group is an eligibility group: those users can be assigned as a program owner, but their actual permissions on a program are decided by the access role selected in the app. For example, a user from the program owner eligibility group can be added to a program as `DRG Staff` and will receive staff-equivalent permissions on that program, not owner-management permissions. External reviewers must already exist in the tenant and belong to the configured external reviewer group before program access can be granted.
 
 ## Tests
 
@@ -91,7 +91,7 @@ Production deployment checklist:
 
 - Set `AUTH_URL` and `APP_URL` to the final public app origin, for example `https://drg-ims.vercel.app` or the Azure App Service custom domain. These URLs are used by Auth.js redirects and notification links.
 - In the Microsoft Entra app registration for sign-in, add redirect URI `<APP_URL>/api/auth/callback/microsoft-entra-id`. Keep `AUTH_MICROSOFT_ENTRA_ID_ISSUER` on the same tenant as the app registration.
-- Configure Entra app roles or group claims for the four app roles: DRG admin, program owner, DRG staff, and external reviewer. Store the group object IDs in the matching `ENTRA_*_GROUP_ID` variables.
+- Configure Entra app roles or group claims for the four app roles/eligibility groups: DRG admin, program owner eligibility, DRG staff, and external reviewer. Store the group object IDs in the matching `ENTRA_*_GROUP_ID` variables.
 - Configure the Dataverse server-to-server app registration with permission to read/write the target environment tables. Set `DATAVERSE_ENVIRONMENT_URL` to the environment URL and use either client secret or certificate credentials.
 - Configure the SharePoint app registration/client credential with Microsoft Graph access to the target site and document library. Set `SHAREPOINT_SITE_ID`, `SHAREPOINT_SITE_URL`, and `SHAREPOINT_DRIVE_ID` for the final library.
 - Import the Power Automate solution package. Most flows are Dataverse-triggered; configure only the app-called acknowledgment flow URL in `POWER_AUTOMATE_APPROVAL_ACKNOWLEDGED_URL`. The flow responsibilities are documented in `docs/power-automate-cloud-flows.md`.

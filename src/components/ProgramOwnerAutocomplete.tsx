@@ -104,8 +104,8 @@ export default function ProgramOwnerAutocomplete({
       renderInput={(params) => (
         <TextField
           {...params}
-          label="Program owner"
-          helperText="Select a user from the Entra program owners group."
+          label="Assigned program owner"
+          helperText="Select a user from the Entra program owner eligibility group."
           fullWidth
           required={required}
         />

@@ -44,16 +44,18 @@ The app uses Auth.js with the Microsoft Entra ID provider, so there's no second 
 There are four internal roles plus one effective role:
 
 - **drg-admin** is granted by membership in the `ENTRA_DRG_ADMIN_GROUP_ID` security group. Admins can do everything, including create and delete programs, manage accounts, and access every program regardless of who's assigned to it.
-- **drg-program-owner** owns one or more programs and can add or remove staff and reviewers on the programs they own. Granted by `ENTRA_DRG_PROGRAM_OWNER_GROUP_ID`.
+- **drg-program-owner** marks users who are eligible to be assigned as program owners. Granted by `ENTRA_DRG_PROGRAM_OWNER_GROUP_ID`.
 - **drg-staff** sees only programs they've been added to and submits deliverables on those. Granted by `ENTRA_DRG_STAFF_GROUP_ID`.
 - **external-reviewer** is the role for government and customer reviewers who have been added to DRG's tenant and assigned to the configured external reviewer group. They can view, download, and re-upload signed copies on programs they've been granted access to, but they can't delete anything. Granted by `ENTRA_EXTERNAL_REVIEWER_GROUP_ID`.
 - **gov-reviewer** is an effective role applied at runtime to authenticated users whose email shows up in a program's access list but who don't hold any of the internal Entra roles above. It exists so one-off reviewers don't have to be added to a security group, just to the program access list.
 
 Role-claim mapping lives in `src/lib/auth/roles.ts` and accepts both Entra app-role assignments and group claims, so DRG IT can grant roles either way. Common naming variants are accepted too, since the app role names DRG eventually settles on may not be the exact strings we put in the code.
 
+Entra groups define broad eligibility and application identity, not the final program-specific permission by themselves. The actual program permission is the selected `drg_programaccess` role. A user in the program owner eligibility group can therefore be granted `DRG Staff` access on a specific program and will have staff-equivalent permissions there; owner-only actions still require an active `Program Owner` access row for that program.
+
 ### External reviewer onboarding
 
-External reviewers must be pre-created in DRG's Entra tenant and assigned to the security group identified by `ENTRA_EXTERNAL_REVIEWER_GROUP_ID`. The app does not create tenant accounts. When an admin or program owner grants program access, the app uses Microsoft Graph to verify that the selected user already exists and belongs to one of the configured program access groups.
+External reviewers must be pre-created in DRG's Entra tenant and assigned to the security group identified by `ENTRA_EXTERNAL_REVIEWER_GROUP_ID`. The app does not create tenant accounts. When an admin or assigned program owner grants program access, the app uses Microsoft Graph to verify that the selected user already exists and belongs to a group eligible for the requested program access role.
 
 Revoking application-level access is handled by deactivating the `drg_programaccess` row. Removing the user from the Entra external reviewer group blocks future reviewer access more broadly.
 
@@ -107,7 +109,7 @@ To run the app in DRG's tenant, the following needs to exist. Items in **bold** 
 - An **app registration** for Microsoft Graph user and group lookup with the application permissions needed to read users and group membership, with admin consent granted.
 - An **app registration** for Dataverse, set up as a Dataverse Application User with create, read, update, and append on the `drg_*` tables. Delete should stay restricted to elevated admins, since the app's own role checks already gate deletion to admin-only.
 - An **app registration** for SharePoint via Graph with `Sites.Selected` (preferred) or `Files.ReadWrite.All`, admin consent granted. If `Sites.Selected` is used, the chosen site needs to be granted access to the registration explicitly through PowerShell or a Graph call.
-- Four **security groups** populated with the right people: DRG Admin, DRG Program Owner, DRG Staff, and External Reviewer. The IDs of these groups go into the env config.
+- Four **security groups** populated with the right people: DRG Admin, DRG Program Owner Eligibility, DRG Staff, and External Reviewer. The IDs of these groups go into the env config.
 
 ### Dataverse
 

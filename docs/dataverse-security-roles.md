@@ -127,9 +127,11 @@ The following roles are still used by the web app, but they should not receive D
 
 | Entra group/app role | Web app behavior |
 | --- | --- |
-| `drg_program_owners` | May manage assigned programs and access through the app when an active `Program Owner` `drg_programaccess` row exists. |
+| `drg_program_owners` | Program owner eligibility group. May manage assigned programs and access through the app only when an active `Program Owner` `drg_programaccess` row exists; may also work as staff when granted `DRG Staff` access on a program. |
 | `drg_staff` | May work assigned programs and upload DRG submissions through the app when an active `DRG Staff` or `Program Owner` access row exists. |
 | `external_reviewers` | May review assigned work through the app when an active `External Reviewer` access row exists. |
+
+Entra membership and `drg_programaccess.drg_accessrole` are intentionally separate. Entra membership verifies broad identity or eligibility, while the access row controls the user's permissions for each program.
 
 The app must enforce:
 

@@ -6,14 +6,14 @@ Do not manually create Dataverse-generated columns such as table primary key GUI
 
 ## Security Model
 
-Entra groups provide broad app-level permissions:
+Entra groups provide broad app-level identity and eligibility:
 
 - `drg_admin`: can create programs, manage program access, and assign program owners.
-- `drg_program_owner`: can manage access for programs where they are listed as the owner.
+- `drg_program_owner`: users eligible to be assigned as a program owner.
 - `drg_staff`: can work with assigned programs and can add deliverable types.
 - `external_user`: external reviewers who already exist in Entra and can view/upload to programs where they have active program access.
 
-Program-specific access lives in `drg_programaccess`. The Entra group says what a user is allowed to do in general; `drg_programaccess` says which programs they can do it on.
+Program-specific access lives in `drg_programaccess`. The Entra group says what app role or access role a user is eligible for; `drg_programaccess.drg_accessrole` says what the user can do on a specific program. A user in the program owner eligibility group can be granted `DRG Staff` access on a program, in which case they receive staff-equivalent permissions for that program and do not receive owner-only permissions unless the access row is `Program Owner`.
 
 ## Global Choices
 

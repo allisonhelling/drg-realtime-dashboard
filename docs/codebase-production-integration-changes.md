@@ -54,7 +54,9 @@ The UI can also derive `gov-reviewer` from active program access rows. Program v
 
 Program access is persisted in `drg_programaccess`, not client-only state. Admins can manage all programs. Program owners can manage access for programs where they have active Program Owner access. Users cannot revoke their own access through the app.
 
-External reviewers must already exist in the DRG tenant and belong to the configured external reviewer group before the app can grant program access. The app verifies users and group membership through Microsoft Graph; it does not create external reviewer accounts.
+Entra groups provide broad identity and eligibility, while the selected `drg_programaccess` role controls per-program permissions. Users from the program owner eligibility group can be granted `DRG Staff` access on a specific program and receive staff-equivalent permissions there; owner-only actions still require an active Program Owner access row.
+
+External reviewers must already exist in the DRG tenant and belong to the configured external reviewer group before the app can grant external reviewer access. The app verifies users and group membership through Microsoft Graph; it does not create external reviewer accounts.
 
 ### SharePoint Upload and Download
 

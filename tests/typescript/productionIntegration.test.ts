@@ -891,6 +891,98 @@ describe("production integration layer", () => {
     ).toBe(false);
   });
 
+  it("allows program-owner-group users with DRG Staff program access to work as staff", async () => {
+    const {
+      canApproveDeliverableDraft,
+      canCreateDeliverable,
+      canManageProgramAccess,
+      canUploadToProgram,
+      canWorkProgram,
+    } = await import("@/lib/auth/guards");
+    const program = createProgram({
+      access: [
+        {
+          id: "access-1",
+          programId: "program-1",
+          email: "eligible-owner@drg.test",
+          accessRole: "DRG Staff",
+          isActive: true,
+          grantedAt: "",
+          grantedByEmail: "admin@drg.test",
+        },
+      ],
+    });
+    const user = {
+      email: "eligible-owner@drg.test",
+      internalRoles: ["drg-program-owner" as const],
+    };
+
+    expect(canWorkProgram(user, program)).toBe(true);
+    expect(canCreateDeliverable(user, program)).toBe(true);
+    expect(canUploadToProgram(user, program)).toBe(true);
+    expect(canManageProgramAccess(user, program)).toBe(false);
+    expect(canApproveDeliverableDraft(user, program)).toBe(false);
+  });
+
+  it("lets program-owner eligibility group members be granted DRG Staff access", async () => {
+    vi.resetModules();
+    vi.stubEnv("AZURE_TENANT_ID", "tenant-id");
+    vi.stubEnv("AZURE_GRAPH_CLIENT_ID", "client-id");
+    vi.stubEnv("AZURE_GRAPH_CLIENT_SECRET", "client-secret");
+    vi.stubEnv("ENTRA_DRG_PROGRAM_OWNER_GROUP_ID", "program-owner-group-id");
+    vi.stubEnv("ENTRA_DRG_STAFF_GROUP_ID", "staff-group-id");
+    vi.stubEnv("ENTRA_EXTERNAL_REVIEWER_GROUP_ID", "reviewer-group-id");
+
+    global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = input.toString();
+
+      if (url.includes("login.microsoftonline.com")) {
+        return jsonResponse({ access_token: "graph-token" });
+      }
+
+      if (url.includes("graph.microsoft.com/v1.0/users?")) {
+        return jsonResponse({
+          value: [
+            {
+              id: "owner-user-id",
+              mail: "eligible-owner@drg.test",
+              displayName: "Eligible Owner",
+            },
+          ],
+        });
+      }
+
+      if (
+        url.includes(
+          "graph.microsoft.com/v1.0/users/owner-user-id/transitiveMemberOf"
+        )
+      ) {
+        return jsonResponse({
+          value: [{ id: "program-owner-group-id" }],
+        });
+      }
+
+      throw new Error(`Unhandled fetch URL: ${url}`);
+    });
+
+    const { getProgramCollaboratorPrincipal } = await import("@/lib/graph/users");
+
+    await expect(
+      getProgramCollaboratorPrincipal(
+        "eligible-owner@drg.test",
+        "External Reviewer"
+      )
+    ).resolves.toBeNull();
+
+    await expect(
+      getProgramCollaboratorPrincipal("eligible-owner@drg.test", "DRG Staff")
+    ).resolves.toMatchObject({
+      email: "eligible-owner@drg.test",
+      accessRole: "DRG Staff",
+      eligibleAccessRoles: ["Program Owner", "DRG Staff"],
+    });
+  });
+
   it("requires comments when rejecting an approval", async () => {
     vi.resetModules();
     const { submitApprovalDecision } = await import("@/lib/dataverse/approvals");

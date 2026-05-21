@@ -13,6 +13,10 @@ import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
+import FormControl from "@mui/material/FormControl";
+import InputLabel from "@mui/material/InputLabel";
+import MenuItem from "@mui/material/MenuItem";
+import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -25,7 +29,7 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { normalizeEmail } from "@/lib/auth/roles";
 import type { Program } from "@/lib/models/program";
-import type { ProgramAccess } from "@/lib/models/program";
+import type { ProgramAccess, ProgramAccessRole } from "@/lib/models/program";
 import { useRole } from "@/lib/context/role-context";
 
 interface ProgramCollaboratorOption {
@@ -33,7 +37,14 @@ interface ProgramCollaboratorOption {
   email: string;
   displayName: string;
   accessRole: ProgramAccess["accessRole"];
+  eligibleAccessRoles?: ProgramAccessRole[];
 }
+
+const GRANTABLE_ACCESS_ROLES: ProgramAccessRole[] = [
+  "Program Owner",
+  "DRG Staff",
+  "External Reviewer",
+];
 
 function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString("en-US", {
@@ -67,6 +78,8 @@ export default function ProgramAccessManager({ program }: { program: Program }) 
   const [selectedEmail, setSelectedEmail] = useState("");
   const [selectedCollaborator, setSelectedCollaborator] =
     useState<ProgramCollaboratorOption | null>(null);
+  const [selectedAccessRole, setSelectedAccessRole] =
+    useState<ProgramAccessRole>("DRG Staff");
   const [collaboratorInput, setCollaboratorInput] = useState("");
   const [collaboratorOptions, setCollaboratorOptions] = useState<
     ProgramCollaboratorOption[]
@@ -171,7 +184,7 @@ export default function ProgramAccessManager({ program }: { program: Program }) 
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, accessRole: selectedAccessRole }),
       });
 
       if (!res.ok) {
@@ -182,6 +195,7 @@ export default function ProgramAccessManager({ program }: { program: Program }) 
       await Promise.all([refreshAccessList(), refreshPrograms()]);
       setSelectedEmail("");
       setSelectedCollaborator(null);
+      setSelectedAccessRole("DRG Staff");
       setCollaboratorInput("");
     } catch (error) {
       setAccessError(error instanceof Error ? error.message : "Failed to grant access.");
@@ -235,7 +249,7 @@ export default function ProgramAccessManager({ program }: { program: Program }) 
         </Typography>
 
         <Alert severity="info" sx={{ mb: 2 }}>
-          Program owner:{" "}
+          Assigned program owner:{" "}
           {program.ownerUpn ? (
             <Tooltip title={program.ownerUpn}>
               <Box component="span">{ownerDisplayName}</Box>
@@ -272,12 +286,14 @@ export default function ProgramAccessManager({ program }: { program: Program }) 
               onChange={(_, selectedValue) => {
                 setSelectedCollaborator(selectedValue);
                 setSelectedEmail(selectedValue?.email ?? "");
+                setSelectedAccessRole(selectedValue?.accessRole ?? "DRG Staff");
               }}
               onInputChange={(_, nextValue) => {
                 setCollaboratorInput(nextValue);
                 if (!nextValue.trim()) {
                   setSelectedCollaborator(null);
                   setSelectedEmail("");
+                  setSelectedAccessRole("DRG Staff");
                 }
               }}
               renderOption={(props, option) => (
@@ -302,6 +318,29 @@ export default function ProgramAccessManager({ program }: { program: Program }) 
               )}
               sx={{ minWidth: 320, maxWidth: "100%", flex: 1 }}
             />
+            <FormControl size="small" sx={{ minWidth: 180 }}>
+              <InputLabel id="program-access-role-label">Access role</InputLabel>
+              <Select
+                labelId="program-access-role-label"
+                label="Access role"
+                value={selectedAccessRole}
+                disabled={!selectedCollaborator}
+                onChange={(event) =>
+                  setSelectedAccessRole(event.target.value as ProgramAccessRole)
+                }
+              >
+                {GRANTABLE_ACCESS_ROLES.filter((role) =>
+                  selectedCollaborator
+                    ? selectedCollaborator.eligibleAccessRoles?.includes(role) ??
+                      selectedCollaborator.accessRole === role
+                    : true
+                ).map((role) => (
+                  <MenuItem key={role} value={role}>
+                    {role}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <Button
               variant="contained"
               size="small"

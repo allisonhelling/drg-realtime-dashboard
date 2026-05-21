@@ -109,9 +109,9 @@ Program access is stored as application data, not as direct Dataverse table acce
 - External Reviewer
 - Read Only
 
-Admins can manage access for any program. Program owners can manage access for programs where they are assigned as an active Program Owner. Users cannot revoke their own access through the client-side access controls.
+Admins can manage access for any program. Program owners can manage access for programs where they have active Program Owner access. Users cannot revoke their own access through the client-side access controls.
 
-The app can search configured Entra groups for eligible program owners, staff, and external reviewers through Microsoft Graph. External reviewers must already exist in DRG's tenant and belong to the configured external reviewer group before program access can be granted. The app verifies this prerequisite; it does not create tenant users.
+The app can search configured Entra groups for eligible program owners, staff, and external reviewers through Microsoft Graph. Entra groups are eligibility signals; the chosen `drg_programaccess` role is what gives the user permissions on a specific program. A member of the program owner eligibility group may be added as `DRG Staff` on a program and will receive staff-equivalent permissions there, while owner-only actions still require active `Program Owner` access. External reviewers must already exist in DRG's tenant and belong to the configured external reviewer group before external reviewer access can be granted. The app verifies these prerequisites; it does not create tenant users.
 
 ### 5.5 Deliverable Management
 
@@ -223,8 +223,8 @@ Teams notification payload builders live in `src/lib/notifications/`. The reposi
 
 The permission model has three layers:
 
-1. Entra role or group membership gives the user broad application identity.
-2. `drg_programaccess` gives the user program-specific access.
+1. Entra role or group membership gives the user broad application identity and role eligibility.
+2. `drg_programaccess` gives the user program-specific access and final program permission.
 3. Server-side route/API guards enforce the final decision for reads, writes, uploads, downloads, approvals, and access management.
 
 Direct Dataverse access is intentionally restricted. Normal program owners, staff, and external reviewers use the web app only. Direct Dataverse roles are reserved for DRG IT/admin users and the web app service principal.
@@ -234,7 +234,7 @@ Direct Dataverse access is intentionally restricted. Normal program owners, staf
 | Role | Meaning |
 | --- | --- |
 | DRG Admin | Full application administrator. Can create programs, manage any access list, see all active/archived programs, archive/delete where implemented, and work across programs. |
-| DRG Program Owner | Program manager role. Can view and manage assigned programs when an active Program Owner access row exists. |
+| DRG Program Owner | Program owner eligibility role. Can manage a program only when an active Program Owner access row exists for that program. Can also be granted DRG Staff access on programs where they should act as staff. |
 | DRG Staff | Internal contributor role. Can work assigned programs, create staff deliverable drafts, and upload submissions when assigned. |
 | External Reviewer | External/customer reviewer role. Can review and upload reviewer documents for assigned programs only. |
 | Gov Reviewer | Derived effective role for users with active program access; used by UI logic to represent scoped reviewer visibility. |
@@ -247,6 +247,8 @@ Direct Dataverse access is intentionally restricted. Normal program owners, staf
 | DRG Staff | Allows internal staff to work on assigned program deliverables and submissions. |
 | External Reviewer | Allows reviewer participation for assigned program documents and approvals. |
 | Read Only | Reserved for view-only access patterns. |
+
+The program access role is intentionally separate from the user's Entra group. This lets DRG keep a broader program owner eligibility group while still adding those users to individual programs as ordinary DRG Staff when appropriate.
 
 ### 6.3 Permission Matrix
 

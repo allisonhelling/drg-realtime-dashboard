@@ -6,9 +6,22 @@ import { createProgramAccess, listProgramAccess, revokeProgramAccess } from "@/l
 import { getProgramById } from "@/lib/dataverse/programs";
 import { businessRuleResponse, errorResponse } from "@/lib/errors/business-rules";
 import { getProgramCollaboratorPrincipal } from "@/lib/graph/users";
+import type { ProgramAccessRole } from "@/lib/models/program";
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function parseAccessRole(value: unknown): ProgramAccessRole | undefined {
+  switch (value) {
+    case "Program Owner":
+    case "DRG Staff":
+    case "External Reviewer":
+    case "Read Only":
+      return value;
+    default:
+      return undefined;
+  }
 }
 
 export async function GET(
@@ -49,9 +62,17 @@ export async function POST(
   const { id: programId } = await params;
   const body = await request.json().catch(() => null);
   const email = normalizeEmail(body?.email);
+  const accessRole = parseAccessRole(body?.accessRole);
 
   if (!isValidEmail(email)) {
     return NextResponse.json({ error: "Valid email is required." }, { status: 400 });
+  }
+
+  if (!accessRole || accessRole === "Read Only") {
+    return NextResponse.json(
+      { error: "A valid program access role is required." },
+      { status: 400 }
+    );
   }
 
   const program = await getProgramById(programId, session.user);
@@ -65,7 +86,7 @@ export async function POST(
   }
 
   try {
-    const collaborator = await getProgramCollaboratorPrincipal(email);
+    const collaborator = await getProgramCollaboratorPrincipal(email, accessRole);
 
     if (!collaborator) {
       return businessRuleResponse("externalUserNotReady");
@@ -77,7 +98,7 @@ export async function POST(
       email: collaborator.email,
       displayName: collaborator.displayName,
       grantedByEmail: session.user.email ?? "",
-      accessRole: collaborator.accessRole,
+      accessRole,
       entraObjectId: collaborator.id,
     });
     return NextResponse.json({

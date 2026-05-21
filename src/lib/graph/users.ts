@@ -56,6 +56,7 @@ export type ProgramCollaboratorRole =
 
 export interface ProgramCollaboratorPrincipal extends EntraUserPrincipal {
   accessRole: ProgramCollaboratorRole;
+  eligibleAccessRoles: ProgramCollaboratorRole[];
 }
 
 function getPrincipalEmail(user: {
@@ -96,6 +97,15 @@ function getConfiguredProgramAccessGroups() {
   ].filter((group): group is { groupId: string; accessRole: ProgramCollaboratorRole } =>
     Boolean(group.groupId)
   );
+}
+
+function roleIsEligibleFromGroup(
+  requestedRole: ProgramCollaboratorRole,
+  groupAccessRole: ProgramCollaboratorRole
+) {
+  if (requestedRole === groupAccessRole) return true;
+
+  return requestedRole === "DRG Staff" && groupAccessRole === "Program Owner";
 }
 
 async function listGroupUserMembers(
@@ -159,12 +169,24 @@ async function listUserGroupIds(token: string, userId: string) {
   return new Set(memberOfJson.value?.map((group) => group.id) ?? []);
 }
 
-function resolveProgramAccessRole(groupIds: Set<string>) {
+function resolveEligibleProgramAccessRoles(groupIds: Set<string>) {
+  const roles = new Set<ProgramCollaboratorRole>();
+
   for (const group of getConfiguredProgramAccessGroups()) {
-    if (groupIds.has(group.groupId)) return group.accessRole;
+    if (!groupIds.has(group.groupId)) continue;
+
+    roles.add(group.accessRole);
+    if (group.accessRole === "Program Owner") roles.add("DRG Staff");
   }
 
-  return undefined;
+  return [...roles];
+}
+
+function resolveDefaultProgramAccessRole(
+  roles: readonly ProgramCollaboratorRole[]
+) {
+  if (roles.includes("Program Owner")) return "Program Owner";
+  return roles[0];
 }
 
 export async function listProgramOwnerPrincipals(
@@ -200,11 +222,36 @@ export async function searchProgramCollaboratorPrincipals(
   for (const group of groups) {
     const members = await listGroupUserMembers(token, group.groupId);
     for (const member of members) {
-      if (!matchesUserQuery(member, query) || byId.has(member.id)) continue;
+      if (!matchesUserQuery(member, query)) continue;
+
+      const existing = byId.get(member.id);
+      if (existing) {
+        if (!existing.eligibleAccessRoles.includes(group.accessRole)) {
+          existing.eligibleAccessRoles.push(group.accessRole);
+        }
+        if (
+          group.accessRole === "Program Owner" &&
+          !existing.eligibleAccessRoles.includes("DRG Staff")
+        ) {
+          existing.eligibleAccessRoles.push("DRG Staff");
+        }
+        existing.accessRole =
+          resolveDefaultProgramAccessRole(existing.eligibleAccessRoles) ??
+          existing.accessRole;
+        continue;
+      }
+
+      const eligibleAccessRoles: ProgramCollaboratorRole[] = [group.accessRole];
+      if (group.accessRole === "Program Owner") {
+        eligibleAccessRoles.push("DRG Staff");
+      }
 
       byId.set(member.id, {
         ...member,
-        accessRole: group.accessRole,
+        accessRole:
+          resolveDefaultProgramAccessRole(eligibleAccessRoles) ??
+          group.accessRole,
+        eligibleAccessRoles,
       });
     }
   }
@@ -215,7 +262,8 @@ export async function searchProgramCollaboratorPrincipals(
 }
 
 export async function getProgramCollaboratorPrincipal(
-  email: string
+  email: string,
+  requestedAccessRole?: ProgramCollaboratorRole
 ): Promise<ProgramCollaboratorPrincipal | null> {
   const token = await getGraphToken();
   const normalizedEmail = escapeGraphFilterValue(email);
@@ -246,7 +294,18 @@ export async function getProgramCollaboratorPrincipal(
   if (!user) return null;
 
   const groupIds = await listUserGroupIds(token, user.id);
-  const accessRole = resolveProgramAccessRole(groupIds);
+  const eligibleAccessRoles = resolveEligibleProgramAccessRoles(groupIds);
+  if (requestedAccessRole) {
+    const eligibleFromConfiguredGroup = getConfiguredProgramAccessGroups().some(
+      (group) =>
+        groupIds.has(group.groupId) &&
+        roleIsEligibleFromGroup(requestedAccessRole, group.accessRole)
+    );
+    if (!eligibleFromConfiguredGroup) return null;
+  }
+
+  const accessRole =
+    requestedAccessRole ?? resolveDefaultProgramAccessRole(eligibleAccessRoles);
   if (!accessRole) return null;
 
   const emailAddress = getPrincipalEmail(user);
@@ -257,6 +316,7 @@ export async function getProgramCollaboratorPrincipal(
     email: emailAddress,
     displayName: user.displayName ?? emailAddress,
     accessRole,
+    eligibleAccessRoles,
   };
 }
 
