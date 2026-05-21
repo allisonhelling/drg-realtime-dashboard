@@ -7,6 +7,11 @@ import BackButton from "@/components/BackButton";
 import DeliverableDetail from "@/components/DeliverableDetail";
 import { assertCanViewProgram, requireUser } from "@/lib/auth/guards";
 import { listVisibleApprovals } from "@/lib/dataverse/approvals";
+import {
+  createDeliverableAccessLog,
+  listDeliverableAccessLogs,
+  shouldCreateDeliverableAccessLog,
+} from "@/lib/dataverse/deliverable-access-logs";
 import { listDocumentAccessLogs } from "@/lib/dataverse/document-access-logs";
 import { getVisibleDeliverableById, listVisibleDeliverables } from "@/lib/dataverse/deliverables";
 import { listDocumentIdsForDeliverable, listVisibleDocuments } from "@/lib/dataverse/documents";
@@ -26,10 +31,15 @@ async function DeliverableDetailContent({ id, user }: { id: string; user: Awaite
   const linkedDocs = documents.filter((doc) => doc.deliverableId === id);
   const documentIds = await listDocumentIdsForDeliverable(id);
   const program = programs.find((p) => p.id === deliverable.programId);
-  const accessLogMap = await listDocumentAccessLogs(linkedDocs.map((doc) => doc.id));
+  const [accessLogMap, deliverableAccessLogMap] = await Promise.all([
+    listDocumentAccessLogs(linkedDocs.map((doc) => doc.id)),
+    listDeliverableAccessLogs([id]),
+  ]);
   const accessLogCountsByDocumentId = Object.fromEntries(
     [...accessLogMap].map(([documentId, logs]) => [documentId, logs.length])
   );
+  const accessLogsByDocumentId = Object.fromEntries(accessLogMap);
+  const deliverableAccessLogs = deliverableAccessLogMap.get(id) ?? [];
 
   return (
     <DeliverableDetail
@@ -39,6 +49,8 @@ async function DeliverableDetailContent({ id, user }: { id: string; user: Awaite
       documentCount={documentIds.length}
       program={program}
       accessLogCountsByDocumentId={accessLogCountsByDocumentId}
+      accessLogsByDocumentId={accessLogsByDocumentId}
+      deliverableAccessLogs={deliverableAccessLogs}
     />
   );
 }
@@ -82,6 +94,24 @@ export default async function RecordPage({
     : undefined;
 
   assertCanViewProgram(user, program);
+
+  if (
+    deliverable &&
+    shouldCreateDeliverableAccessLog({
+      action: "View",
+      internalRoles: user.internalRoles,
+    })
+  ) {
+    await createDeliverableAccessLog({
+      deliverableId: deliverable.id,
+      programId: deliverable.programId,
+      actorUserId: user.id,
+      actorName: user.name ?? user.email ?? "Signed-in user",
+      actorEmail: user.email ?? "",
+      action: "View",
+      source: "Deliverable Page",
+    });
+  }
 
   const backConfig = await getDeliverableBackConfig(id, from, user);
 

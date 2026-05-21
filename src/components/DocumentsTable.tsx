@@ -418,7 +418,7 @@ export default function DocumentsTable({
               </Button>
             </Tooltip>
           )}
-          {role === "gov-reviewer" && (
+          {role === "external-reviewer" && (
             <Typography variant="caption" sx={{ color: "text.secondary" }}>
               Read-only access — download only
             </Typography>

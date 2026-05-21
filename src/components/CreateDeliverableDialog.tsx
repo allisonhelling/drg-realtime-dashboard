@@ -430,8 +430,8 @@ export default function CreateDeliverableDialog({
               renderInput={(params) => (
                 <TextField {...params} label="Assigned to" fullWidth />
               )}
-              renderOption={(props, option) => (
-                <li {...props} key={option.email}>
+              renderOption={({ key, ...props }, option) => (
+                <li key={key} {...props}>
                   <Stack spacing={0.25}>
                     <Typography variant="body2">
                       {option.displayName || option.email}

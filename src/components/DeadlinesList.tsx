@@ -11,6 +11,7 @@ import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import type { Deliverable, DeliverableStatus } from "@/lib/models/deliverable";
 import type { Program } from "@/lib/models/program";
+import { normalizeEmail } from "@/lib/auth/roles";
 
 const STATUS_CHIP_STYLE: Partial<Record<DeliverableStatus, object>> = {
   "Not Submitted": {},
@@ -44,6 +45,23 @@ function formatDueDate(iso: string): string {
     month: "short",
     day: "numeric",
   });
+}
+
+function getAssignedToEmail(deliverable: Deliverable) {
+  return deliverable.assignedToEmail || deliverable.assignedTo;
+}
+
+function getAssignedToDisplay(deliverable: Deliverable, program: Program | undefined) {
+  const assignedToEmail = getAssignedToEmail(deliverable);
+  const displayName =
+    program?.access.find(
+      (entry) => normalizeEmail(entry.email) === normalizeEmail(assignedToEmail)
+    )?.displayName ?? deliverable.assignedTo;
+
+  return normalizeEmail(displayName) === normalizeEmail(assignedToEmail) ||
+    displayName.includes("@")
+    ? "Unknown user"
+    : displayName;
 }
 
 interface DeliverableGroup {
@@ -115,10 +133,15 @@ function groupDeliverables(deliverables: Deliverable[]): DeliverableGroup[] {
 function DeliverableCard({
   deliverable,
   programName,
+  program,
 }: {
   deliverable: Deliverable;
   programName: string;
+  program: Program | undefined;
 }) {
+  const assignedToEmail = getAssignedToEmail(deliverable);
+  const assignedToDisplay = getAssignedToDisplay(deliverable, program);
+
   return (
     <Card
       variant="outlined"
@@ -200,8 +223,8 @@ function DeliverableCard({
             variant="body2"
             sx={{ color: "text.secondary", ml: "auto" }}
           >
-            <Tooltip title={deliverable.assignedToEmail || deliverable.assignedTo}>
-              <Box component="span">{deliverable.assignedTo}</Box>
+            <Tooltip title={assignedToEmail}>
+              <Box component="span">{assignedToDisplay}</Box>
             </Tooltip>
           </Typography>
         </Box>
@@ -223,6 +246,10 @@ export default function DeadlinesList({ deliverables, programs }: DeadlinesListP
   const groups = useMemo(() => groupDeliverables(actionable), [actionable]);
   const programNameById = useMemo(
     () => Object.fromEntries(programs.map((program) => [program.id, program.name])),
+    [programs]
+  );
+  const programsById = useMemo(
+    () => new Map(programs.map((program) => [program.id, program])),
     [programs]
   );
 
@@ -283,6 +310,7 @@ export default function DeadlinesList({ deliverables, programs }: DeadlinesListP
                 key={d.id}
                 deliverable={d}
                 programName={programNameById[d.programId] ?? d.programId}
+                program={programsById.get(d.programId)}
               />
             ))}
           </Stack>

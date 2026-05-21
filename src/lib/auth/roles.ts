@@ -9,7 +9,6 @@ export const EFFECTIVE_ROLES = [
   "drg-program-owner",
   "drg-staff",
   "external-reviewer",
-  "gov-reviewer",
 ] as const;
 
 export type InternalRole = (typeof INTERNAL_ROLES)[number];
@@ -20,7 +19,6 @@ export const ROLE_LABELS: Record<EffectiveRole, string> = {
   "drg-program-owner": "DRG Program Owner",
   "drg-staff": "DRG Staff",
   "external-reviewer": "External Reviewer",
-  "gov-reviewer": "Gov Reviewer",
 };
 
 const ENTRA_APP_ROLE_TO_INTERNAL_ROLE: Record<string, InternalRole> = {

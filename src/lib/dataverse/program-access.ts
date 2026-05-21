@@ -1,5 +1,6 @@
 import { MockProgramConnector } from "@/lib/connectors/mock-programs";
 import { normalizeEmail } from "@/lib/auth/roles";
+import { getEntraUserPrincipalsByEmail } from "@/lib/graph/users";
 import type { ProgramAccess, ProgramAccessRole } from "@/lib/models/program";
 import {
   dataverseFetch,
@@ -156,6 +157,40 @@ function mapAccessRow(row: DataverseProgramAccessRow): ProgramAccessRecord {
   };
 }
 
+async function enrichProgramAccessDisplayNames(
+  access: ProgramAccessRecord[]
+): Promise<ProgramAccessRecord[]> {
+  const missingDisplayNameEmails = access
+    .filter((entry) => !entry.displayName)
+    .map((entry) => entry.email);
+
+  if (missingDisplayNameEmails.length === 0) return access;
+
+  const issuerTenantId = process.env.AUTH_MICROSOFT_ENTRA_ID_ISSUER?.match(
+    /login\.microsoftonline\.com\/([^/]+)/
+  )?.[1];
+  const hasGraphCredentials = Boolean(
+    (process.env.AZURE_TENANT_ID || issuerTenantId) &&
+      (process.env.AZURE_GRAPH_CLIENT_ID || process.env.AUTH_MICROSOFT_ENTRA_ID_ID) &&
+      (process.env.AZURE_GRAPH_CLIENT_SECRET || process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET)
+  );
+
+  if (!hasGraphCredentials) return access;
+
+  try {
+    const principals = await getEntraUserPrincipalsByEmail(missingDisplayNameEmails);
+    return access.map((entry) => ({
+      ...entry,
+      displayName:
+        entry.displayName ??
+        principals.get(normalizeEmail(entry.email))?.displayName,
+    }));
+  } catch (error) {
+    console.warn("Failed to enrich program access display names", error);
+    return access;
+  }
+}
+
 export async function listActiveProgramAccess(): Promise<ProgramAccessRecord[]> {
   if (!isDataverseConfigured()) {
     const programs = await new MockProgramConnector().getPrograms();
@@ -178,7 +213,7 @@ export async function listActiveProgramAccess(): Promise<ProgramAccessRecord[]> 
     "$select=drg_programaccessid,drg_email,drg_grantedon,drg_grantedbyemail,drg_isactive,_drg_program_value,_drg_user_value,drg_revokedon,drg_revokedbyemail,drg_entraobjectid,drg_accessrole&$filter=statecode eq 0 and drg_isactive eq true"
   );
 
-  return rows.map(mapAccessRow);
+  return enrichProgramAccessDisplayNames(rows.map(mapAccessRow));
 }
 
 export async function listProgramAccess(
@@ -203,7 +238,7 @@ export async function listProgramAccess(
     `$select=drg_programaccessid,drg_email,drg_grantedon,drg_grantedbyemail,drg_isactive,_drg_program_value,_drg_user_value,drg_revokedon,drg_revokedbyemail,drg_entraobjectid,drg_accessrole&$filter=statecode eq 0 and _drg_program_value eq ${programId}`
   );
 
-  return rows.map(mapAccessRow);
+  return enrichProgramAccessDisplayNames(rows.map(mapAccessRow));
 }
 
 export async function hasActiveProgramAccess(

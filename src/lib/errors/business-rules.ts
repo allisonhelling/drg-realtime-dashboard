@@ -21,6 +21,8 @@ export const BUSINESS_RULE_MESSAGES = {
   pdfRequired: "Only PDF files can be uploaded.",
   reviewedDocumentRequired:
     "A reviewed submission document is required for this action.",
+  reviewedDocumentDownloadRequired:
+    "Download the submitted document before submitting a review decision.",
   rejectionCommentsRequired:
     "Rejection comments are required when returning a submission.",
   signedApprovalPdfRequired:
@@ -42,6 +44,7 @@ const BUSINESS_RULE_STATUS: Record<BusinessRuleCode, number> = {
   deliverableDeleteBlocked: 409,
   pdfRequired: 400,
   reviewedDocumentRequired: 400,
+  reviewedDocumentDownloadRequired: 409,
   rejectionCommentsRequired: 400,
   signedApprovalPdfRequired: 400,
   reviewerAccessRequired: 403,
@@ -99,6 +102,10 @@ const BUSINESS_RULE_PATTERNS: Array<{
   {
     code: "reviewedDocumentRequired",
     patterns: [/reviewed document required/i, /reviewed submission document/i, /parentdocument/i, /accepted submission document/i],
+  },
+  {
+    code: "reviewedDocumentDownloadRequired",
+    patterns: [/download.*submitted document/i, /submitted document.*download/i],
   },
   {
     code: "rejectionCommentsRequired",

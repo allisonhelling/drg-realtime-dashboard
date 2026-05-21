@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Card from "@mui/material/Card";
@@ -26,6 +26,12 @@ import type { Deliverable, DeliverableStatus } from "@/lib/models/deliverable";
 
 const STEPS = ["Select Program", "Select Deliverable", "Attach Document", "Submitted"];
 const PDF_REQUIRED_MESSAGE = "Only PDF files can be uploaded.";
+const MAX_SUBMISSION_FILE_BYTES = 4 * 1024 * 1024;
+const FILE_SIZE_LIMIT_MESSAGE =
+  "This PDF is too large to upload through the dashboard. Please upload a PDF smaller than 4 MB.";
+const SUBMISSION_TIMEOUT_MS = 120_000;
+const SUBMISSION_TIMEOUT_MESSAGE =
+  "Document submission timed out after 2 minutes. Please try again. If this keeps happening locally, verify SharePoint and network configuration.";
 
 function ensurePdfFileName(value: string) {
   const trimmed = value.trim();
@@ -330,6 +336,14 @@ function UploadStep({
       return;
     }
 
+    if (f.size > MAX_SUBMISSION_FILE_BYTES) {
+      setFile(null);
+      setDocumentName("");
+      setDocumentDescription("");
+      setFileError(FILE_SIZE_LIMIT_MESSAGE);
+      return;
+    }
+
     setFileError(null);
     setFile(f);
     setDocumentName(f.name);
@@ -413,7 +427,7 @@ function UploadStep({
       </Box>
 
       <Alert severity="info" sx={{ mb: 3 }}>
-        Once submitted, this document becomes part of the permanent record. Government reviewers will be
+        Once submitted, this document becomes part of the permanent record. External reviewers will be
         notified and can view and download it, but cannot edit or delete it.
       </Alert>
       {fileError && <Alert severity="error" sx={{ mb: 3 }}>{fileError}</Alert>}
@@ -529,7 +543,7 @@ function ConfirmationStep({
 
       <Alert severity={warning ? "warning" : "success"} sx={{ mb: 3 }}>
         {warning ??
-          `Government reviewers with access to ${program.name} have been notified. This submission is now stored as the system record; uploads and external reviewer download activity are logged.`}
+          `External reviewers with access to ${program.name} have been notified. This submission is now stored as the system record; uploads and external reviewer download activity are logged.`}
       </Alert>
 
       <Divider sx={{ mb: 3 }} />
@@ -574,10 +588,19 @@ export default function SubmitReportWizard({
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [submissionWarning, setSubmissionWarning] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submissionTimeoutRef = useRef<number | null>(null);
 
   const program = visiblePrograms.find((p) => p.id === programId) ?? null;
   const deliverable = visibleDeliverables.find((d) => d.id === deliverableId) ?? null;
   const programDeliverables = visibleDeliverables.filter((d) => d.programId === programId);
+
+  useEffect(() => {
+    return () => {
+      if (submissionTimeoutRef.current !== null) {
+        window.clearTimeout(submissionTimeoutRef.current);
+      }
+    };
+  }, []);
 
   if (visiblePrograms.length === 0) {
     return (
@@ -608,10 +631,23 @@ export default function SubmitReportWizard({
       setSubmissionError(PDF_REQUIRED_MESSAGE);
       return;
     }
+    if (f.size > MAX_SUBMISSION_FILE_BYTES) {
+      setSubmissionError(FILE_SIZE_LIMIT_MESSAGE);
+      return;
+    }
 
     setIsSubmitting(true);
     setSubmissionError(null);
     setSubmissionWarning(null);
+
+    if (submissionTimeoutRef.current !== null) {
+      window.clearTimeout(submissionTimeoutRef.current);
+    }
+
+    const controller = new AbortController();
+    submissionTimeoutRef.current = window.setTimeout(() => {
+      controller.abort();
+    }, SUBMISSION_TIMEOUT_MS);
 
     try {
       const formData = new FormData();
@@ -626,6 +662,7 @@ export default function SubmitReportWizard({
       const res = await fetch("/api/documents/submit", {
         method: "POST",
         body: formData,
+        signal: controller.signal,
       });
 
       const json = await res.json().catch(() => null);
@@ -641,8 +678,18 @@ export default function SubmitReportWizard({
       setSubmissionTime(new Date().toISOString());
       setStep(3);
     } catch (error) {
-      setSubmissionError(error instanceof Error ? error.message : "Failed to submit document.");
+      setSubmissionError(
+        error instanceof Error && error.name === "AbortError"
+          ? SUBMISSION_TIMEOUT_MESSAGE
+          : error instanceof Error
+          ? error.message
+          : "Failed to submit document."
+      );
     } finally {
+      if (submissionTimeoutRef.current !== null) {
+        window.clearTimeout(submissionTimeoutRef.current);
+        submissionTimeoutRef.current = null;
+      }
       setIsSubmitting(false);
     }
   };

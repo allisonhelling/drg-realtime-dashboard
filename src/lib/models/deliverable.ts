@@ -19,6 +19,32 @@ export const DELIVERABLE_STATUSES = [
 ] as const;
 export type DeliverableStatus = (typeof DELIVERABLE_STATUSES)[number];
 
+export const DELIVERABLE_ACCESS_ACTIONS = [
+  "View",
+  "Document Upload",
+  "Document Download",
+  "Review Opened",
+  "Review Submitted",
+  "Acknowledged",
+] as const;
+export type DeliverableAccessAction = (typeof DELIVERABLE_ACCESS_ACTIONS)[number];
+
+export interface DeliverableAccessLog {
+  id: string;
+  deliverableId: string;
+  programId: string;
+  documentId?: string;
+  approvalId?: string;
+  actorUserId?: string;
+  actorName: string;
+  actorEmail: string;
+  action: DeliverableAccessAction;
+  source?: string;
+  result?: string;
+  details?: string;
+  occurredOn: string;
+}
+
 export interface Deliverable {
   id: string;
   title: string;

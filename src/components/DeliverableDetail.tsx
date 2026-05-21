@@ -27,9 +27,19 @@ import EditIcon from "@mui/icons-material/Edit";
 import GavelIcon from "@mui/icons-material/Gavel";
 import RateReviewIcon from "@mui/icons-material/RateReview";
 import SendIcon from "@mui/icons-material/Send";
-import type { Deliverable, DeliverableStatus } from "@/lib/models/deliverable";
+import type {
+  Deliverable,
+  DeliverableAccessAction,
+  DeliverableAccessLog,
+  DeliverableStatus,
+} from "@/lib/models/deliverable";
 import type { Approval } from "@/lib/models/approval";
-import type { DeliverableDocument, DocumentRole, FileType } from "@/lib/models/document";
+import type {
+  DeliverableDocument,
+  DocumentAccessLog,
+  DocumentRole,
+  FileType,
+} from "@/lib/models/document";
 import type { Program } from "@/lib/models/program";
 import { useRole } from "@/lib/context/role-context";
 import { normalizeEmail } from "@/lib/auth/roles";
@@ -54,6 +64,23 @@ const FILE_TYPE_COLORS: Record<FileType, string> = {
   PowerPoint: "#d24726",
 };
 
+const ACCESS_ACTION_COLORS: Record<
+  DeliverableAccessAction,
+  "primary" | "success" | "default"
+> = {
+  "Document Upload": "primary",
+  "Document Download": "success",
+  View: "default",
+  "Review Opened": "default",
+  "Review Submitted": "success",
+  Acknowledged: "success",
+};
+
+const REVIEWABLE_DELIVERABLE_STATUSES: DeliverableStatus[] = [
+  "In Review",
+  "Overdue - Waiting on Reviewer",
+];
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", {
     month: "short",
@@ -71,6 +98,148 @@ function formatDateTime(iso: string) {
   });
 }
 
+function getDocumentUploaderDisplay(
+  document: DeliverableDocument,
+  program: Program | undefined,
+  logs: DocumentAccessLog[] = []
+) {
+  const uploadLog = logs.find((event) => event.action === "Upload");
+  const email = document.uploadedByEmail || document.uploadedBy;
+  const uploadLogDisplayName =
+    uploadLog?.actorName && !uploadLog.actorName.includes("@")
+      ? uploadLog.actorName
+      : undefined;
+  const documentDisplayName =
+    document.uploadedBy && !document.uploadedBy.includes("@")
+      ? document.uploadedBy
+      : undefined;
+  const programDisplayName =
+    program?.access.find(
+      (entry) => normalizeEmail(entry.email) === normalizeEmail(email)
+    )?.displayName ??
+    (normalizeEmail(program?.ownerUpn) === normalizeEmail(email)
+      ? program?.ownerName
+      : undefined);
+
+  return {
+    name: uploadLogDisplayName || programDisplayName || documentDisplayName || email,
+    email: email || uploadLog?.actorEmail || "",
+  };
+}
+
+function getAccessLogActorDisplay(
+  log: DeliverableAccessLog,
+  program: Program | undefined
+) {
+  const actorName =
+    log.actorName && !log.actorName.includes("@") ? log.actorName : undefined;
+  const programDisplayName =
+    program?.access.find(
+      (entry) => normalizeEmail(entry.email) === normalizeEmail(log.actorEmail)
+    )?.displayName ??
+    (normalizeEmail(program?.ownerUpn) === normalizeEmail(log.actorEmail)
+      ? program?.ownerName
+      : undefined);
+
+  return {
+    name: programDisplayName || actorName || log.actorEmail || "Unknown user",
+    email: log.actorEmail,
+  };
+}
+
+function getPersonLabel(name: string | null | undefined, email: string) {
+  if (name && normalizeEmail(name) !== normalizeEmail(email) && !name.includes("@")) {
+    return name;
+  }
+
+  return "Unknown user";
+}
+
+function DeliverableAccessLogSection({
+  logs,
+  program,
+}: {
+  logs: Array<DeliverableAccessLog & { documentName?: string }>;
+  program: Program | undefined;
+}) {
+  return (
+    <Box>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+          Deliverable Access Log
+        </Typography>
+        <Chip
+          label={logs.length}
+          size="small"
+          variant="outlined"
+          sx={{ fontSize: "0.7rem", height: 20 }}
+        />
+      </Box>
+
+      {logs.length === 0 ? (
+        <Box
+          sx={{
+            border: "1px dashed",
+            borderColor: "divider",
+            borderRadius: 1,
+            py: 3,
+            textAlign: "center",
+          }}
+        >
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            No access activity recorded yet for this deliverable.
+          </Typography>
+        </Box>
+      ) : (
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          {logs.map((log) => {
+            const actor = getAccessLogActorDisplay(log, program);
+
+            return (
+              <Card key={log.id} variant="outlined">
+                <CardContent
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1.5,
+                    py: 1.25,
+                    "&:last-child": { pb: 1.25 },
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <Chip
+                    label={log.action === "View" ? "Opened deliverable page" : log.action}
+                    size="small"
+                    variant="outlined"
+                    color={ACCESS_ACTION_COLORS[log.action]}
+                    sx={{ fontSize: "0.7rem", flexShrink: 0 }}
+                  />
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    <Tooltip title={actor.email}>
+                      <Box component="span">{actor.name}</Box>
+                    </Tooltip>
+                  </Typography>
+                  {log.documentName && (
+                    <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                      {log.documentName}
+                    </Typography>
+                  )}
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary", ml: "auto" }}
+                  >
+                    {formatDateTime(log.occurredOn)}
+                  </Typography>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
 interface DeliverableDetailProps {
   deliverable: Deliverable;
   documents: DeliverableDocument[];
@@ -78,6 +247,8 @@ interface DeliverableDetailProps {
   documentCount?: number;
   program: Program | undefined;
   accessLogCountsByDocumentId?: Record<string, number>;
+  accessLogsByDocumentId?: Record<string, DocumentAccessLog[]>;
+  deliverableAccessLogs?: DeliverableAccessLog[];
 }
 
 interface AssignedToOption {
@@ -92,6 +263,8 @@ export default function DeliverableDetail({
   documentCount = documents.length,
   program,
   accessLogCountsByDocumentId = {},
+  accessLogsByDocumentId = {},
+  deliverableAccessLogs: rawDeliverableAccessLogs = [],
 }: DeliverableDetailProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -99,6 +272,8 @@ export default function DeliverableDetail({
   const [isMarkingReadyForReview, setIsMarkingReadyForReview] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [showDeliverableAccessLog, setShowDeliverableAccessLog] =
+    useState(false);
   const [reviewDialogApproval, setReviewDialogApproval] = useState<Approval | null>(
     null
   );
@@ -126,6 +301,7 @@ export default function DeliverableDetail({
     canDeleteDeliverableForProgram,
     currentUser,
     role,
+    roles,
   } = useRole();
   const canSubmit =
     Boolean(program && program.status !== "Archived") &&
@@ -145,6 +321,8 @@ export default function DeliverableDetail({
     canSubmit &&
     hasCurrentDrgSubmission &&
     ["Submitted", "Returned", "Not Submitted"].includes(d.status);
+  const canShowReviewRequested =
+    canSubmit && hasCurrentDrgSubmission && d.status === "In Review";
   const canSeeAccessLog =
     role === "drg-admin" || role === "drg-program-owner" || role === "drg-staff";
   const canApproveDraft =
@@ -155,14 +333,14 @@ export default function DeliverableDetail({
     canDeleteDeliverableForProgram(d.programId, documentCount);
   const canEdit =
     Boolean(program) && canCreateDeliverableForProgram(d.programId);
-  const assignedToDisplay =
-    program?.access.find(
-      (entry) =>
-        normalizeEmail(entry.email) === normalizeEmail(d.assignedToEmail)
-    )?.displayName ??
-    assignedToDirectoryName ??
-    d.assignedToEmail ??
-    d.assignedTo;
+  const assignedToEmail = d.assignedToEmail || d.assignedTo;
+  const assignedToAccessName = program?.access.find(
+    (entry) => normalizeEmail(entry.email) === normalizeEmail(assignedToEmail)
+  )?.displayName;
+  const assignedToDisplay = getPersonLabel(
+    assignedToAccessName ?? assignedToDirectoryName ?? d.assignedTo,
+    assignedToEmail
+  );
   const assignedToOptions = useMemo(() => {
     const options = new Map<string, AssignedToOption>();
 
@@ -209,6 +387,27 @@ export default function DeliverableDetail({
     () => new Map(documents.map((document) => [document.id, document])),
     [documents]
   );
+  const deliverableAccessLogItems = useMemo(
+    () =>
+      rawDeliverableAccessLogs
+        .filter(
+          (log) =>
+            log.action === "Document Upload" ||
+            log.action === "Document Download" ||
+            log.action === "View"
+        )
+        .map((log) => ({
+          ...log,
+          documentName: log.documentId
+            ? documentsById.get(log.documentId)?.fileName ?? "Document"
+            : undefined,
+        }))
+        .sort(
+          (a, b) =>
+            new Date(b.occurredOn).getTime() - new Date(a.occurredOn).getTime()
+        ),
+    [rawDeliverableAccessLogs, documentsById]
+  );
   const documentsByApprovalId = useMemo(() => {
     const grouped = new Map<string, DeliverableDocument[]>();
 
@@ -222,12 +421,45 @@ export default function DeliverableDetail({
 
     return grouped;
   }, [documents]);
-  const currentApprovals = approvals.filter((approval) => approval.isCurrent);
-  const reviewerApprovals = currentApprovals.filter(
+  const currentApprovals = approvals.filter(
     (approval) =>
-      role === "external-reviewer" &&
-      normalizeEmail(approval.reviewerEmail) === currentUserEmail
+      approval.isCurrent ||
+      (REVIEWABLE_DELIVERABLE_STATUSES.includes(d.status) &&
+        approval.decision === "Pending")
   );
+  const hasExternalReviewerAccess = Boolean(
+    roles.includes("external-reviewer") ||
+    program?.access.some(
+      (entry) =>
+        entry.isActive &&
+        entry.accessRole === "External Reviewer" &&
+        normalizeEmail(entry.email) === currentUserEmail
+    )
+  );
+  const pendingReviewApproval =
+    currentApprovals.find((approval) => approval.decision === "Pending") ??
+    approvals.find((approval) => approval.decision === "Pending");
+  const canExternalReviewerReviewDeliverable =
+    hasExternalReviewerAccess && REVIEWABLE_DELIVERABLE_STATUSES.includes(d.status);
+  const hasDownloadedSubmittedDocument = (approval: Approval) =>
+    (accessLogsByDocumentId[approval.documentId] ?? []).some(
+      (log) =>
+        log.action === "Download" &&
+        normalizeEmail(log.actorEmail) === currentUserEmail
+    ) ||
+    rawDeliverableAccessLogs.some((log) => {
+      if (
+        log.action !== "Document Download" ||
+        normalizeEmail(log.actorEmail) !== currentUserEmail
+      ) {
+        return false;
+      }
+
+      if (log.documentId) return log.documentId === approval.documentId;
+      if (log.approvalId) return log.approvalId === approval.id;
+
+      return false;
+    });
   const canAcknowledgeApprovals =
     role === "drg-admin" || role === "drg-program-owner";
 
@@ -541,6 +773,22 @@ export default function DeliverableDetail({
     }
   }
 
+  function handleOpenExternalReview() {
+    if (!pendingReviewApproval) {
+      setActionError("No pending review approval was found for this deliverable.");
+      return;
+    }
+
+    if (!hasDownloadedSubmittedDocument(pendingReviewApproval)) {
+      setActionError("Download the new submitted document before starting the review.");
+      return;
+    }
+
+    setActionError(null);
+    setReviewDecision("Approved");
+    setReviewDialogApproval(pendingReviewApproval);
+  }
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
       {/* Header card */}
@@ -622,7 +870,7 @@ export default function DeliverableDetail({
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
               <PersonIcon sx={{ fontSize: "0.9rem", color: "text.secondary" }} />
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                <Tooltip title={d.assignedToEmail || d.assignedTo}>
+                <Tooltip title={assignedToEmail}>
                   <Box component="span">{assignedToDisplay}</Box>
                 </Tooltip>
               </Typography>
@@ -703,8 +951,8 @@ export default function DeliverableDetail({
             renderInput={(params) => (
               <TextField {...params} label="Assigned to" fullWidth />
             )}
-            renderOption={(props, option) => (
-              <li {...props} key={option.email}>
+            renderOption={({ key, ...props }, option) => (
+              <li key={key} {...props}>
                 <Box>
                   <Typography variant="body2">
                     {option.displayName || option.email}
@@ -872,21 +1120,32 @@ export default function DeliverableDetail({
 
       {/* Submit action */}
       {canSubmit && d.status !== "Complete" && (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-          <Button
-            component={NextLink}
-            href={`/submit?programId=${encodeURIComponent(d.programId)}&deliverableId=${encodeURIComponent(d.id)}&returnTo=${encodeURIComponent(pathname)}&returnLabel=Deliverable`}
-            variant="contained"
-            startIcon={<UploadFileIcon />}
-            size="small"
-          >
-            Submit Document for {d.title}
-          </Button>
-          <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mt: 0.75 }}>
-            This will open the submission wizard pre-filled for this deliverable.
-          </Typography>
-          {canMarkReadyForReview && (
-            <Box>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 2,
+            flexWrap: "wrap",
+          }}
+        >
+          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+            <Button
+              component={NextLink}
+              href={`/submit?programId=${encodeURIComponent(d.programId)}&deliverableId=${encodeURIComponent(d.id)}&returnTo=${encodeURIComponent(pathname)}&returnLabel=Deliverable`}
+              variant="contained"
+              startIcon={<UploadFileIcon />}
+              size="small"
+              sx={{ alignSelf: "flex-start", width: "fit-content" }}
+            >
+              Submit Deliverable
+            </Button>
+            <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mt: 0.75 }}>
+              Opens the submission wizard pre-filled for this deliverable.
+            </Typography>
+          </Box>
+          {canMarkReadyForReview ? (
+            <Box sx={{ ml: "auto", textAlign: "right" }}>
               <Button
                 variant="outlined"
                 size="small"
@@ -901,7 +1160,31 @@ export default function DeliverableDetail({
                 {activeExternalReviewers.length === 1 ? "" : "s"} assigned to this program.
               </Typography>
             </Box>
-          )}
+          ) : canShowReviewRequested ? (
+            <Box sx={{ ml: "auto", textAlign: "right" }}>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<CheckCircleOutlineIcon />}
+                disabled
+                sx={{
+                  "&.Mui-disabled": {
+                    borderColor: "success.main",
+                    color: "success.main",
+                    opacity: 1,
+                  },
+                  "& .MuiButton-startIcon": {
+                    color: "success.main",
+                  },
+                }}
+              >
+                Review Requested
+              </Button>
+              <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mt: 0.75 }}>
+                External reviewers have been notified.
+              </Typography>
+            </Box>
+          ) : null}
         </Box>
       )}
 
@@ -922,12 +1205,9 @@ export default function DeliverableDetail({
                     document.documentRole === "Signed Approval" ||
                     document.documentRole === "Reviewer Response"
                   );
-              const isReviewerApproval = reviewerApprovals.some(
-                (reviewerApproval) => reviewerApproval.id === approval.id
-              );
               const isBusy = approvalBusyId === approval.id;
               const canSubmitDecision =
-                isReviewerApproval && approval.decision === "Pending";
+                hasExternalReviewerAccess && approval.decision === "Pending";
               const canAcknowledge =
                 canAcknowledgeApprovals &&
                 approval.decision === "Approved" &&
@@ -1024,12 +1304,33 @@ export default function DeliverableDetail({
 
       {/* Linked documents */}
       <Box>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
-          Submitted Documents
-          <Typography component="span" variant="body2" sx={{ color: "text.secondary", ml: 1, fontWeight: 400 }}>
-            ({documents.length})
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 1.5,
+            flexWrap: "wrap",
+            mb: 1.5,
+          }}
+        >
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+            Submitted Documents
+            <Typography component="span" variant="body2" sx={{ color: "text.secondary", ml: 1, fontWeight: 400 }}>
+              ({documents.length})
+            </Typography>
           </Typography>
-        </Typography>
+          {canExternalReviewerReviewDeliverable && (
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<RateReviewIcon />}
+              onClick={handleOpenExternalReview}
+            >
+              Review
+            </Button>
+          )}
+        </Box>
 
         {documents.length === 0 ? (
           <Box
@@ -1054,6 +1355,12 @@ export default function DeliverableDetail({
           <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
             {documents.map((doc) => {
               const accessCount = accessLogCountsByDocumentId[doc.id] ?? 0;
+              const documentAccessLogs = accessLogsByDocumentId[doc.id] ?? [];
+              const uploadedBy = getDocumentUploaderDisplay(
+                doc,
+                program,
+                documentAccessLogs
+              );
 
               return (
                 <Card key={doc.id} variant="outlined">
@@ -1082,8 +1389,8 @@ export default function DeliverableDetail({
                     </MuiLink>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexShrink: 0 }}>
                       <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                        <Tooltip title={doc.uploadedByEmail || doc.uploadedBy}>
-                          <Box component="span">{doc.uploadedBy}</Box>
+                        <Tooltip title={uploadedBy.email}>
+                          <Box component="span">{uploadedBy.name}</Box>
                         </Tooltip>
                         {" · "}
                         {formatDateTime(doc.uploadedAt)}
@@ -1111,6 +1418,31 @@ export default function DeliverableDetail({
           </Box>
         )}
       </Box>
+
+      {canSeeAccessLog && (
+        <>
+          <Divider />
+          <Box>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<VisibilityIcon />}
+              onClick={() =>
+                setShowDeliverableAccessLog((current) => !current)
+              }
+            >
+              {showDeliverableAccessLog ? "Hide" : "Show"} Access Log (
+              {deliverableAccessLogItems.length})
+            </Button>
+          </Box>
+          {showDeliverableAccessLog && (
+            <DeliverableAccessLogSection
+              logs={deliverableAccessLogItems}
+              program={program}
+            />
+          )}
+        </>
+      )}
     </Box>
   );
 }

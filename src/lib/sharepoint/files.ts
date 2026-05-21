@@ -16,6 +16,10 @@ export interface SharePointDownloadInput {
   itemId: string;
 }
 
+const GRAPH_REQUEST_TIMEOUT_MS = Number(
+  process.env.GRAPH_REQUEST_TIMEOUT_MS ?? 45_000
+);
+
 function isSharePointConfigured() {
   return Boolean(
     process.env.SHAREPOINT_TENANT_ID &&
@@ -30,6 +34,26 @@ export function isSharePointUploadConfigured() {
   return isSharePointConfigured();
 }
 
+async function fetchGraph(input: string, init: RequestInit = {}) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), GRAPH_REQUEST_TIMEOUT_MS);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: init.signal ?? controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("Microsoft Graph request timed out.");
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 const getGraphToken = cache(async () => {
   if (!isSharePointConfigured()) {
     throw new Error("SharePoint is not configured.");
@@ -42,7 +66,7 @@ const getGraphToken = cache(async () => {
     scope: "https://graph.microsoft.com/.default",
   });
 
-  const response = await fetch(
+  const response = await fetchGraph(
     `https://login.microsoftonline.com/${process.env.SHAREPOINT_TENANT_ID}/oauth2/v2.0/token`,
     {
       method: "POST",
@@ -131,7 +155,7 @@ function getDriveGraphBaseUrl(driveId: string) {
 }
 
 async function getDriveItemByPath(token: string, driveId: string, path: string) {
-  return fetch(
+  return fetchGraph(
     `${getDriveGraphBaseUrl(driveId)}/root:/${toGraphPath(path)}`,
     {
       headers: {
@@ -151,7 +175,7 @@ async function createFolder(
   const parentSelector = parentPath
     ? `root:/${toGraphPath(parentPath)}:/children`
     : "root/children";
-  const response = await fetch(
+  const response = await fetchGraph(
     `${getDriveGraphBaseUrl(driveId)}/${parentSelector}`,
     {
       method: "POST",
@@ -443,7 +467,7 @@ export async function uploadPdfToSharePoint(input: {
   await ensureSharePointFolderPath(folderPath);
   const path = `${folderPath}/${getStoredFileName(input.fileName)}`;
 
-  const response = await fetch(
+  const response = await fetchGraph(
     `${getDriveGraphBaseUrl(driveId)}/root:/${toGraphPath(
       path
     )}:/content`,

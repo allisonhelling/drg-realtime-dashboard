@@ -67,6 +67,17 @@ function getDisplayName(
   return fallback || match?.displayName || email;
 }
 
+function getIdentityLabel(
+  email: string,
+  options: ProgramCollaboratorOption[],
+  fallback?: string
+) {
+  const displayName = getDisplayName(email, options, fallback);
+  return normalizeEmail(displayName) === normalizeEmail(email)
+    ? "Unknown user"
+    : displayName;
+}
+
 export default function ProgramAccessManager({ program }: { program: Program }) {
   const {
     currentUser,
@@ -101,7 +112,7 @@ export default function ProgramAccessManager({ program }: { program: Program }) 
           entry.accessRole === "Program Owner" &&
           normalizeEmail(entry.email) === normalizeEmail(currentUser?.email)
       ));
-  const ownerDisplayName = getDisplayName(
+  const ownerDisplayName = getIdentityLabel(
     program.ownerUpn,
     collaboratorOptions,
     program.ownerName
@@ -296,8 +307,8 @@ export default function ProgramAccessManager({ program }: { program: Program }) 
                   setSelectedAccessRole("DRG Staff");
                 }
               }}
-              renderOption={(props, option) => (
-                <Box component="li" {...props} sx={{ gap: 1.5 }}>
+              renderOption={({ key, ...props }, option) => (
+                <Box component="li" key={key} {...props} sx={{ gap: 1.5 }}>
                   <Box sx={{ minWidth: 0, flex: 1 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
                       {option.displayName}
@@ -350,11 +361,7 @@ export default function ProgramAccessManager({ program }: { program: Program }) 
               {isSavingAccess ? "Sending Invite..." : "Grant Access"}
             </Button>
           </Box>
-        ) : (
-          <Alert severity="info" sx={{ mb: 2 }}>
-            Only DRG admins or the assigned program owner can manage this access list.
-          </Alert>
-        )}
+        ) : null}
 
         {accessError && <Alert severity="error" sx={{ mb: 2 }}>{accessError}</Alert>}
 
@@ -362,8 +369,7 @@ export default function ProgramAccessManager({ program }: { program: Program }) 
           <Table size="small" sx={{ minWidth: 760 }}>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 700, width: { xs: 220, md: 300 } }}>Name</TableCell>
-                <TableCell sx={{ fontWeight: 700, minWidth: 240 }}>Email</TableCell>
+                <TableCell sx={{ fontWeight: 700, width: { xs: 260, md: 360 } }}>Name</TableCell>
                 <TableCell sx={{ fontWeight: 700, minWidth: 150 }}>Role</TableCell>
                 <TableCell sx={{ fontWeight: 700, minWidth: 180 }}>Granted On</TableCell>
                 {mayManageAccess && <TableCell sx={{ fontWeight: 700, width: 120 }}>Actions</TableCell>}
@@ -375,7 +381,7 @@ export default function ProgramAccessManager({ program }: { program: Program }) 
                   mayManageAccess &&
                   entry.isActive &&
                   normalizeEmail(entry.email) !== normalizeEmail(currentUser?.email);
-                const displayName = getDisplayName(
+                const displayName = getIdentityLabel(
                   entry.email,
                   collaboratorOptions,
                   entry.displayName
@@ -392,7 +398,6 @@ export default function ProgramAccessManager({ program }: { program: Program }) 
                         </Typography>
                       )}
                     </TableCell>
-                    <TableCell>{entry.email}</TableCell>
                     <TableCell>
                       <Chip
                         label={entry.isActive ? entry.accessRole : "Inactive"}

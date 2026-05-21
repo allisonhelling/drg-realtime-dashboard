@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { canSubmitApprovalDecision } from "@/lib/auth/guards";
-import { createDocumentAccessLog } from "@/lib/dataverse/document-access-logs";
+import {
+  createDeliverableAccessLog,
+  hasDeliverableDocumentDownloadByActor,
+} from "@/lib/dataverse/deliverable-access-logs";
+import {
+  createDocumentAccessLog,
+  hasDocumentDownloadByActor,
+} from "@/lib/dataverse/document-access-logs";
 import { getApprovalById } from "@/lib/dataverse/approvals";
 import { getVisibleDeliverableById } from "@/lib/dataverse/deliverables";
 import { createDocumentMetadata } from "@/lib/dataverse/documents";
@@ -77,6 +84,22 @@ export async function POST(
     );
   }
 
+  const hasDownloadedSubmission =
+    (await hasDocumentDownloadByActor({
+      documentId: approval.documentId,
+      actorEmail: session.user.email,
+    })) ||
+    (await hasDeliverableDocumentDownloadByActor({
+      deliverableId: approval.deliverableId,
+      documentId: approval.documentId,
+      approvalId: approval.id,
+      actorEmail: session.user.email,
+    }));
+
+  if (!hasDownloadedSubmission) {
+    return businessRuleResponse("reviewedDocumentDownloadRequired");
+  }
+
   try {
     const content = await file.arrayBuffer();
     const sharePointFile = await uploadPdfToSharePoint({
@@ -113,6 +136,18 @@ export async function POST(
       actorName: session.user.name ?? session.user.email ?? "Signed-in user",
       actorEmail: session.user.email ?? "",
       action: "Upload",
+    });
+
+    await createDeliverableAccessLog({
+      deliverableId: deliverable.id,
+      programId: program.id,
+      documentId,
+      approvalId: approval.id,
+      actorUserId: session.user.id,
+      actorName: session.user.name ?? session.user.email ?? "Signed-in user",
+      actorEmail: session.user.email ?? "",
+      action: "Document Upload",
+      source: "Review Dialog",
     });
 
     return NextResponse.json({

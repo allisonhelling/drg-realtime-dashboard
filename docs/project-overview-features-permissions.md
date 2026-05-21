@@ -69,7 +69,7 @@ Users sign in with Microsoft Entra ID through Auth.js. The application maps Entr
 - `drg-staff`
 - `external-reviewer`
 
-The frontend role context also derives `gov-reviewer` when the signed-in user has an active program access row. This is an effective UI role used for program-scoped visibility; it is not a direct Entra role.
+The frontend role context also derives `external-reviewer` when the signed-in user has an active External Reviewer program access row.
 
 The navigation, buttons, submit wizard, detail pages, and management pages all use these roles plus program access data to decide what a user can see or do.
 
@@ -239,7 +239,6 @@ Direct Dataverse access is intentionally restricted. Normal program owners, staf
 | DRG Program Owner | Program owner eligibility role. Can manage a program only when an active Program Owner access row exists for that program. Can also be granted DRG Staff access on programs where they should act as staff. |
 | DRG Staff | Internal contributor role. Can work assigned programs, create staff deliverable drafts, and upload submissions when assigned. |
 | External Reviewer | External/customer reviewer role. Can review and upload reviewer documents for assigned programs only. |
-| Gov Reviewer | Derived effective role for users with active program access; used by UI logic to represent scoped reviewer visibility. |
 
 ### 6.2 Program Access Roles
 
@@ -309,6 +308,7 @@ Program owners, DRG staff, and external reviewers should not receive direct Data
 | `drg_deliverable` | Contractual submission requirement. |
 | `drg_document` | Metadata for a SharePoint-backed document. |
 | `drg_documentaccesslog` | Audit row for uploads, external reviewer view/download activity, and workflow actions such as acknowledgment where configured. |
+| `drg_deliverableaccesslog` | Audit row for deliverable-level activity such as reviewer page opens, review actions, and deliverable timeline rollups. |
 | `drg_approval` | Reviewer decision and approval history. |
 | `systemuser` | Dataverse user lookup target for owners, creators, reviewers, and audit fields. |
 

@@ -52,6 +52,7 @@ Assign this role to the Dataverse group team backed by the `drg_admins` Entra gr
 | `contact` | None | None | None | None | None | None | None | None |
 | `drg_approval` | Organization | Organization | Organization | See delete policy | Organization | Organization | Organization | Organization |
 | `drg_deliverable` | Organization | Organization | Organization | See delete policy | Organization | Organization | Organization | Organization |
+| `drg_deliverableaccesslog` | Organization | Organization | Organization | See delete policy | Organization | Organization | Organization | Organization |
 | `drg_deliverabletype` | Organization | Organization | Organization | None | Organization | Organization | Organization | Organization |
 | `drg_document` | Organization | Organization | Organization | See delete policy | Organization | Organization | Organization | Organization |
 | `drg_documentaccesslog` | Organization | Organization | Organization | See delete policy | Organization | Organization | Organization | Organization |
@@ -84,6 +85,7 @@ Assign this role to the Dataverse Application User for the app registration conf
 | `contact` | None | None | None | None | None | None | None | None |
 | `drg_approval` | Organization | Organization | Organization | See delete policy | Organization | Organization | Organization | Organization |
 | `drg_deliverable` | Organization | Organization | Organization | See delete policy | Organization | Organization | Organization | Organization |
+| `drg_deliverableaccesslog` | Organization | Organization | Organization | See delete policy | Organization | Organization | Organization | Organization |
 | `drg_deliverabletype` | Organization | Organization | Organization | None | Organization | Organization | Organization | Organization |
 | `drg_document` | Organization | Organization | Organization | See delete policy | Organization | Organization | Organization | Organization |
 | `drg_documentaccesslog` | Organization | Organization | Organization | See delete policy | Organization | Organization | Organization | Organization |
@@ -111,6 +113,7 @@ Current production-safe recommendation:
 | `drg_document` | Enable only when full cascade delete is intentionally implemented and SharePoint cleanup is handled. |
 | `drg_approval` | Enable only when full cascade delete is intentionally implemented. |
 | `drg_documentaccesslog` | Avoid deleting unless DRG approves deleting audit history. |
+| `drg_deliverableaccesslog` | Avoid deleting unless DRG approves deleting audit history. |
 | `drg_deliverabletype` | Keep delete off; deactivate or rename reference values instead. |
 
 Recommended staged rollout:

@@ -31,12 +31,17 @@ function getEffectiveRoles(
 ) {
   const roles = new Set<Role>(internalRoles);
 
-  const hasProgramAccess = Object.values(accessMap).some((entries) =>
-    entries.some((entry) => normalizeEmail(entry.email) === email),
+  const hasExternalReviewerAccess = Object.values(accessMap).some((entries) =>
+    entries.some(
+      (entry) =>
+        entry.isActive &&
+        entry.accessRole === 'External Reviewer' &&
+        normalizeEmail(entry.email) === email,
+    ),
   );
 
-  if (hasProgramAccess) {
-    roles.add('gov-reviewer');
+  if (hasExternalReviewerAccess) {
+    roles.add('external-reviewer');
   }
 
   return EFFECTIVE_ROLES.filter((role) => roles.has(role));
@@ -213,10 +218,6 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
           entry.accessRole === 'DRG Staff' ||
           entry.accessRole === 'Program Owner'
         );
-      }
-
-      if (internalRoles.includes('external-reviewer')) {
-        return entry.accessRole === 'External Reviewer';
       }
 
       return false;

@@ -34,7 +34,7 @@ export default function SidebarNav() {
   const pathname = usePathname();
   const { role, roles } = useRole();
   const canSubmit = role
-    ? ["drg-admin", "drg-program-owner", "drg-staff", "external-reviewer"].includes(role)
+    ? ["drg-admin", "drg-program-owner", "drg-staff"].includes(role)
     : false;
   const canViewAnalytics = roles.some((currentRole) =>
     ["drg-admin", "drg-program-owner", "drg-staff"].includes(currentRole)

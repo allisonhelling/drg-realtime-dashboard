@@ -221,6 +221,21 @@ export async function listProgramDocumentAccessLogs(
     .filter((log) => allowedIds.has(log.programId));
 }
 
+export async function hasDocumentDownloadByActor(input: {
+  documentId: string;
+  actorEmail?: string | null;
+}) {
+  const actorEmail = normalizeEmail(input.actorEmail);
+  if (!actorEmail) return false;
+
+  const logMap = await listDocumentAccessLogs([input.documentId]);
+  return (logMap.get(input.documentId) ?? []).some(
+    (log) =>
+      log.action === "Download" &&
+      normalizeEmail(log.actorEmail) === actorEmail
+  );
+}
+
 export async function createDocumentAccessLog(input: {
   documentId: string;
   programId: string;

@@ -4,6 +4,8 @@ import {
   getApprovalById,
   submitApprovalDecision,
 } from "@/lib/dataverse/approvals";
+import { hasDeliverableDocumentDownloadByActor } from "@/lib/dataverse/deliverable-access-logs";
+import { hasDocumentDownloadByActor } from "@/lib/dataverse/document-access-logs";
 import { getVisibleDocumentById } from "@/lib/dataverse/documents";
 import { getProgramById } from "@/lib/dataverse/programs";
 import { businessRuleResponse, errorResponse } from "@/lib/errors/business-rules";
@@ -58,6 +60,22 @@ export async function PATCH(
 
   if (decision === "Approved" && !responseDocumentId) {
     return businessRuleResponse("signedApprovalPdfRequired");
+  }
+
+  const hasDownloadedSubmission =
+    (await hasDocumentDownloadByActor({
+      documentId: approval.documentId,
+      actorEmail: session.user.email,
+    })) ||
+    (await hasDeliverableDocumentDownloadByActor({
+      deliverableId: approval.deliverableId,
+      documentId: approval.documentId,
+      approvalId: approval.id,
+      actorEmail: session.user.email,
+    }));
+
+  if (!hasDownloadedSubmission) {
+    return businessRuleResponse("reviewedDocumentDownloadRequired");
   }
 
   if (responseDocumentId) {

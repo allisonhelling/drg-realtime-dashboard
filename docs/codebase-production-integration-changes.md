@@ -48,7 +48,7 @@ Role mapping supports the current internal roles:
 - `drg-staff`
 - `external-reviewer`
 
-The UI can also derive `gov-reviewer` from active program access rows. Program visibility and action permissions are scoped by `drg_programaccess` and enforced on server routes before reads/writes are performed.
+The UI can also derive `external-reviewer` from active External Reviewer program access rows. Program visibility and action permissions are scoped by `drg_programaccess` and enforced on server routes before reads/writes are performed.
 
 ### Program Access
 

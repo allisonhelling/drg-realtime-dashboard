@@ -41,7 +41,7 @@ function getNextDeliverableNumber(input: {
 }) {
   const prefix = input.programNumber.trim();
   const pattern = new RegExp(`^${escapeRegExp(prefix)}-(\\d{3,})$`, "i");
-  let nextSequence = 0;
+  let nextSequence = 1;
 
   for (const number of input.existingNumbers) {
     const match = number.trim().match(pattern);

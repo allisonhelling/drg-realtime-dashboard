@@ -290,8 +290,8 @@ export default function DocumentDetail({
         sx={{ "& .MuiAlert-message": { fontSize: "0.8rem" } }}
       >
         <strong>Permanent record.</strong> This document was submitted on {formatDateTime(doc.uploadedAt)} and cannot be
-        modified or deleted by external users. The access log below focuses on uploads and external reviewer activity.
-        {role === "gov-reviewer" && " Your access to this document has been recorded."}
+        modified or deleted by external users.
+        {role === "external-reviewer" && " Your access to this document has been recorded."}
       </Alert>
 
       <Divider />

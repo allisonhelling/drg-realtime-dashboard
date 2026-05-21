@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { canUploadToProgram } from "@/lib/auth/guards";
+import { createDeliverableAccessLog } from "@/lib/dataverse/deliverable-access-logs";
 import { createDocumentAccessLog } from "@/lib/dataverse/document-access-logs";
 import { getVisibleDeliverableById } from "@/lib/dataverse/deliverables";
 import { createDocumentMetadata } from "@/lib/dataverse/documents";
@@ -108,6 +109,17 @@ export async function POST(request: Request) {
       actorName: session.user.name ?? session.user.email ?? "Signed-in user",
       actorEmail: session.user.email ?? "",
       action: "Upload",
+    });
+
+    await createDeliverableAccessLog({
+      deliverableId,
+      programId,
+      documentId,
+      actorUserId: session.user.id,
+      actorName: session.user.name ?? session.user.email ?? "Signed-in user",
+      actorEmail: session.user.email ?? "",
+      action: "Document Upload",
+      source: "Submit Wizard",
     });
 
     return NextResponse.json({

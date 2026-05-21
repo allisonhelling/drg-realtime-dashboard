@@ -48,8 +48,8 @@ export function getEffectiveRolesForProgram(
   const userEmail = normalizeEmail(user.email);
   const activeAccess = getActiveProgramAccess(program, userEmail);
 
-  if (activeAccess) {
-    roles.add("gov-reviewer");
+  if (activeAccess?.accessRole === "External Reviewer") {
+    roles.add("external-reviewer");
   }
 
   return [...roles];
@@ -211,12 +211,6 @@ export function canUploadToProgram(
   if (isProgramArchived(program)) return false;
   if (user.internalRoles.includes("drg-admin")) return true;
 
-  if (user.internalRoles.includes("external-reviewer")) {
-    return hasActiveProgramAccessWithRole(program, user.email, [
-      "External Reviewer",
-    ]);
-  }
-
   return canWorkProgram(user, program);
 }
 
@@ -232,17 +226,11 @@ export function canSubmitApprovalDecision(
   program: Program,
   approval: Approval | undefined
 ) {
-  if (!approval?.isCurrent) return false;
+  if (!approval) return false;
   if (approval.programId !== program.id) return false;
   if (isProgramArchived(program)) return false;
-  if (!user.internalRoles.includes("external-reviewer")) return false;
-  if (normalizeEmail(approval.reviewerEmail) !== normalizeEmail(user.email)) {
-    return false;
-  }
-
-  return hasActiveProgramAccessWithRole(program, user.email, [
-    "External Reviewer",
-  ]);
+  const access = getActiveProgramAccess(program, user.email);
+  return access?.accessRole === "External Reviewer";
 }
 
 export function assertCanViewProgram(

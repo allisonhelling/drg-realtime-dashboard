@@ -87,8 +87,8 @@ export default function ProgramOwnerAutocomplete({
       }
       onChange={(_, selectedValue) => onChange(selectedValue)}
       onInputChange={(_, nextValue) => onInputChange(nextValue)}
-      renderOption={(props, option) => (
-        <li {...props} key={option.id}>
+      renderOption={({ key, ...props }, option) => (
+        <li key={key} {...props}>
           <Stack spacing={0.25}>
             <Typography variant="body2">
               {option.displayName || option.email}

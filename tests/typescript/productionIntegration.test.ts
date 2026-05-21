@@ -1015,6 +1015,35 @@ describe("production integration layer", () => {
     ).rejects.toMatchObject({ code: "rejectionCommentsRequired" });
   });
 
+  it("allows assigned reviewers with active program access to submit decisions", async () => {
+    vi.resetModules();
+    const { canSubmitApprovalDecision } = await import("@/lib/auth/guards");
+    const program = createProgram({
+      access: [
+        {
+          id: "access-1",
+          programId: "program-1",
+          email: "reviewer@gov.test",
+          accessRole: "External Reviewer",
+          isActive: true,
+          grantedAt: "",
+          grantedByEmail: "admin@drg.test",
+        },
+      ],
+    });
+
+    expect(
+      canSubmitApprovalDecision(
+        {
+          email: "reviewer@gov.test",
+          internalRoles: [],
+        },
+        program,
+        createApproval()
+      )
+    ).toBe(true);
+  });
+
   it("requires a signed approval PDF when approving", async () => {
     vi.resetModules();
     const { submitApprovalDecision } = await import("@/lib/dataverse/approvals");
@@ -1176,6 +1205,53 @@ describe("production integration layer", () => {
       drg_action: 100000001,
     });
     expect(accessLogPayload?.drg_occurredon).toEqual(expect.any(String));
+  });
+
+  it("detects whether a reviewer downloaded the submitted document", async () => {
+    vi.resetModules();
+    configureDataverseEnv();
+    global.fetch = createDataverseFetchMock({
+      "/drg_documentaccesslogs?": () =>
+        jsonResponse({
+          value: [
+            {
+              drg_documentaccesslogid: "log-1",
+              _drg_document_value: "document-1",
+              _drg_program_value: "program-1",
+              drg_actorname: "External Reviewer",
+              drg_actoremail: "Reviewer@Gov.Test",
+              drg_occurredon: "2026-05-21T12:00:00Z",
+              [`drg_action@${FORMATTED_VALUE_ANNOTATION}`]: "Download",
+            },
+            {
+              drg_documentaccesslogid: "log-2",
+              _drg_document_value: "document-1",
+              _drg_program_value: "program-1",
+              drg_actorname: "Other Reviewer",
+              drg_actoremail: "other@gov.test",
+              drg_occurredon: "2026-05-21T12:05:00Z",
+              [`drg_action@${FORMATTED_VALUE_ANNOTATION}`]: "View",
+            },
+          ],
+        }),
+    });
+
+    const { hasDocumentDownloadByActor } = await import(
+      "@/lib/dataverse/document-access-logs"
+    );
+
+    await expect(
+      hasDocumentDownloadByActor({
+        documentId: "document-1",
+        actorEmail: "reviewer@gov.test",
+      })
+    ).resolves.toBe(true);
+    await expect(
+      hasDocumentDownloadByActor({
+        documentId: "document-1",
+        actorEmail: "other@gov.test",
+      })
+    ).resolves.toBe(false);
   });
 
   it("limits document access logging to uploads and external reviewer access", async () => {

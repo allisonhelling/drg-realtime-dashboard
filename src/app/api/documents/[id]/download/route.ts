@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { canDownloadFromProgram } from "@/lib/auth/guards";
+import { canDownloadFromProgram, getActiveProgramAccess } from "@/lib/auth/guards";
+import { createDeliverableAccessLog } from "@/lib/dataverse/deliverable-access-logs";
 import {
   createDocumentAccessLog,
   shouldCreateDocumentAccessLog,
@@ -44,7 +45,12 @@ export async function GET(
     );
   }
 
+  const activeProgramAccess = getActiveProgramAccess(program, session.user.email);
+  const isExternalReviewerAccess =
+    activeProgramAccess?.accessRole === "External Reviewer";
+
   if (
+    isExternalReviewerAccess ||
     shouldCreateDocumentAccessLog({
       action: "Download",
       internalRoles: session.user.internalRoles,
@@ -59,6 +65,18 @@ export async function GET(
       action: "Download",
     });
   }
+
+  await createDeliverableAccessLog({
+    deliverableId: document.deliverableId,
+    programId: document.programId,
+    documentId: document.id,
+    approvalId: document.approvalId,
+    actorUserId: session.user.id,
+    actorName: session.user.name ?? session.user.email ?? "Signed-in user",
+    actorEmail: session.user.email ?? "",
+    action: "Document Download",
+    source: "Download API",
+  });
 
   try {
     const fileResponse = await fetchSharePointFile({

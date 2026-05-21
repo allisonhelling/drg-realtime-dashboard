@@ -47,7 +47,6 @@ There are four internal roles plus one effective role:
 - **drg-program-owner** marks users who are eligible to be assigned as program owners. Granted by `ENTRA_DRG_PROGRAM_OWNER_GROUP_ID`.
 - **drg-staff** sees only programs they've been added to and submits deliverables on those. Granted by `ENTRA_DRG_STAFF_GROUP_ID`.
 - **external-reviewer** is the role for government and customer reviewers who have been added to DRG's tenant and assigned to the configured external reviewer group. They can view, download, and re-upload signed copies on programs they've been granted access to, but they can't delete anything. Granted by `ENTRA_EXTERNAL_REVIEWER_GROUP_ID`.
-- **gov-reviewer** is an effective role applied at runtime to authenticated users whose email shows up in a program's access list but who don't hold any of the internal Entra roles above. It exists so one-off reviewers don't have to be added to a security group, just to the program access list.
 
 Role-claim mapping lives in `src/lib/auth/roles.ts` and accepts both Entra app-role assignments and group claims, so DRG IT can grant roles either way. Common naming variants are accepted too, since the app role names DRG eventually settles on may not be the exact strings we put in the code.
 
@@ -228,7 +227,7 @@ The repo has a multi-language test suite, run via `pnpm test:all`. TypeScript te
 | Area | Status |
 |---|---|
 | Authentication via Entra ID | Production-ready, real Auth.js + Entra provider |
-| Role mapping (4 internal + gov-reviewer) | Production-ready, Entra app roles and group claims supported |
+| Role mapping (4 internal roles) | Production-ready, Entra app roles and group claims supported |
 | Dataverse data model and CRUD | Production-ready, real Web API client with secret or certificate auth |
 | SharePoint upload and download | Production-ready, real Microsoft Graph integration |
 | Power Automate triggers (app side) | Production-ready, flows must be authored on the DRG side |

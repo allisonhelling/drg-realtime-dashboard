@@ -11,6 +11,7 @@ Power Automate usually shows Dataverse table names as plural display names. The 
 - `drg_program` -> `drg_programs`
 - `drg_programaccess` -> `drg_programaccesses`
 - `drg_deliverable` -> `drg_deliverables`
+- `drg_deliverableaccesslog` -> `drg_deliverableaccesslogs`
 - `drg_deliverabletype` -> `drg_deliverabletypes`
 - `drg_document` -> `drg_documents`
 - `drg_documentaccesslog` -> `drg_documentaccesslogs`

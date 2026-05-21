@@ -307,6 +307,47 @@ Business rules:
 
 - `Successful access events`: Status rollup flows should only treat `drg_action = View` or `Download` as a real view/download when, if `drg_result` is used, `drg_result = Success`. Denied or failed access attempts may be retained for audit history but must not move documents or deliverables into review states.
 
+## 9. `drg_deliverableaccesslog`
+
+Purpose: persistent audit rows for deliverable-level activity, especially external reviewer page opens and deliverable timeline events. Keep document-specific proof of upload/download in `drg_documentaccesslog`; use this table when the action is about the deliverable workflow or when a deliverable page needs a first-class timeline row.
+
+Primary name: `drg_name`
+
+Required columns:
+
+- `drg_name`: Text, required
+- `drg_deliverable`: Lookup to `drg_deliverable`, required
+- `drg_program`: Lookup to `drg_program`, required
+- `drg_actorname`: Text, required
+- `drg_actoremail`: Text, required
+- `drg_action`: Choice, required
+- `drg_occurredon`: Date and time, required
+
+Optional columns:
+
+- `drg_actoruser`: Lookup to `systemuser`
+- `drg_document`: Lookup to `drg_document`
+- `drg_approval`: Lookup to `drg_approval`
+- `drg_source`: Text. Suggested values: Deliverable Page, Document Detail Page, Submit Wizard, Review Dialog, Download API, Power Automate, System.
+- `drg_result`: Choice with values Success, Denied, Failed
+- `drg_requestid`: Text
+- `drg_details`: Multiline text
+
+Suggested `drg_action` choice values:
+
+- View
+- Document Upload
+- Document Download
+- Review Opened
+- Review Submitted
+- Acknowledged
+
+Business rules:
+
+- `Result meaning`: `drg_result` describes whether the logged action succeeded. Do not use Accepted or Rejected here; those are approval decisions and belong on `drg_approval`.
+- `Optional document context`: Populate `drg_document` when the deliverable event came from a specific document upload/download. Leave it blank for page-level events such as an external reviewer opening the deliverable page.
+- `Successful deliverable events`: Status rollup flows should only react to log rows when, if `drg_result` is used, `drg_result = Success`.
+
 ## Relationships
 
 Create these relationships:
@@ -319,11 +360,14 @@ Create these relationships:
 - `drg_deliverabletype` 1-to-many `drg_deliverable`
 - `drg_deliverable` 1-to-many `drg_document`
 - `drg_deliverable` 1-to-many `drg_approval`
+- `drg_deliverable` 1-to-many `drg_deliverableaccesslog`
 - `drg_document` 1-to-many `drg_document` through `drg_parentdocument`
 - `drg_document` 1-to-many `drg_approval`
 - `drg_approval` 1-to-many `drg_document` through `drg_approval`
 - `drg_document` 1-to-many `drg_approval` through `drg_responsedocument`
 - `drg_document` 1-to-many `drg_documentaccesslog`
+- `drg_document` 1-to-many `drg_deliverableaccesslog`
+- `drg_approval` 1-to-many `drg_deliverableaccesslog`
 
 Parent delete should be restricted for `drg_program` and `drg_deliverable` child records. Use status fields or active flags to retire records instead of deleting history.
 
@@ -339,6 +383,7 @@ Parent delete should be restricted for `drg_program` and `drg_deliverable` child
 8. Add the optional `drg_document.drg_approval` lookup after both tables exist.
 9. Create `drg_programsite`.
 10. Create `drg_documentaccesslog`.
-11. Add alternate keys.
-12. Add business rules and required columns.
-13. Enable auditing on all tables.
+11. Create `drg_deliverableaccesslog`.
+12. Add alternate keys.
+13. Add business rules and required columns.
+14. Enable auditing on all tables.

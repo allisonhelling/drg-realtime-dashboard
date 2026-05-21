@@ -62,36 +62,58 @@ function getStatusChipProps(status: DeliverableStatus) {
   return { sx: STATUS_CHIP_STYLE[status] };
 }
 
-function descendingComparator(a: Deliverable, b: Deliverable, key: SortableKey): number {
-  const aVal = a[key] ?? "";
-  const bVal = b[key] ?? "";
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString();
+}
+
+/*
+ * Older deliverables may store an email in assignedTo. Keep that email in the
+ * tooltip, but prefer the Entra display name as the visible label.
+ */
+function getAssignedToDisplay(deliverable: Deliverable, programs: Program[]) {
+  const program = programs.find((entry) => entry.id === deliverable.programId);
+  const assignedToEmail = getAssignedToEmail(deliverable);
+  const displayName =
+    program?.access.find(
+      (entry) => normalizeEmail(entry.email) === normalizeEmail(assignedToEmail)
+    )?.displayName ?? deliverable.assignedTo;
+
+  return normalizeEmail(displayName) === normalizeEmail(assignedToEmail) ||
+    displayName.includes("@")
+    ? "Unknown user"
+    : displayName;
+}
+
+function getAssignedToEmail(deliverable: Deliverable) {
+  return deliverable.assignedToEmail || deliverable.assignedTo;
+}
+
+function getAssignedToSortValue(deliverable: Deliverable, programs: Program[]) {
+  const displayName = getAssignedToDisplay(deliverable, programs);
+  return displayName === "Unknown user"
+    ? getAssignedToEmail(deliverable)
+    : displayName;
+}
+
+function descendingComparator(
+  a: Deliverable,
+  b: Deliverable,
+  key: SortableKey,
+  programs: Program[]
+): number {
+  const aVal = key === "assignedTo" ? getAssignedToSortValue(a, programs) : a[key] ?? "";
+  const bVal = key === "assignedTo" ? getAssignedToSortValue(b, programs) : b[key] ?? "";
   if (bVal < aVal) return -1;
   if (bVal > aVal) return 1;
   return 0;
 }
 
-function getComparator(order: Order, orderBy: SortableKey) {
+function getComparator(order: Order, orderBy: SortableKey, programs: Program[]) {
   return order === "desc"
-    ? (a: Deliverable, b: Deliverable) => descendingComparator(a, b, orderBy)
-    : (a: Deliverable, b: Deliverable) => -descendingComparator(a, b, orderBy);
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString();
-}
-
-function getAssignedToDisplay(deliverable: Deliverable, programs: Program[]) {
-  const program = programs.find((entry) => entry.id === deliverable.programId);
-  return (
-    program?.access.find(
-      (entry) =>
-        normalizeEmail(entry.email) === normalizeEmail(deliverable.assignedToEmail)
-    )?.displayName ?? deliverable.assignedTo
-  );
-}
-
-function getAssignedToEmail(deliverable: Deliverable) {
-  return deliverable.assignedToEmail || deliverable.assignedTo;
+    ? (a: Deliverable, b: Deliverable) =>
+        descendingComparator(a, b, orderBy, programs)
+    : (a: Deliverable, b: Deliverable) =>
+        -descendingComparator(a, b, orderBy, programs);
 }
 
 interface AssignedToOption {
@@ -218,7 +240,7 @@ export default function RecordsTable({
         ].some((value) => value.toLowerCase().includes(normalizedSearchQuery))
       );
     }
-    return rows.slice().sort(getComparator(order, orderBy));
+    return rows.slice().sort(getComparator(order, orderBy, programs));
   }, [deliverables, statusFilter, typeFilter, programFilter, searchQuery, order, orderBy, programMap, programs]);
 
   const handleSort = (column: SortableKey) => {

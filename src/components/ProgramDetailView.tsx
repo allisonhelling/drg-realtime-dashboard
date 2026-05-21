@@ -45,6 +45,19 @@ function formatDate(iso: string) {
   });
 }
 
+function formatMonthKey(monthKey: string) {
+  if (!monthKey) return "None";
+
+  const date = new Date(`${monthKey}-01T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return monthKey;
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 function toDateInputValue(iso: string) {
   return iso ? iso.slice(0, 10) : "";
 }
@@ -377,12 +390,10 @@ export default function ProgramDetailView({
 
       <AnalyticsSummaryCards
         cards={[
-          { label: "Documents Submitted", value: documents.length },
-          { label: "Deliverables Created", value: deliverables.length },
           { label: "Deliverables Completed", value: completedDeliverables },
           { label: "Pending Review", value: pendingReview, alert: pendingReview > 0 },
           { label: "Overdue", value: overdue, alert: overdue > 0 },
-          { label: "Top Month", value: busiestMonth ? `${busiestMonth[0]} (${busiestMonth[1]})` : "None" },
+          { label: "Top Month", value: busiestMonth ? `${formatMonthKey(busiestMonth[0])} (${busiestMonth[1]})` : "None" },
         ]}
       />
 
