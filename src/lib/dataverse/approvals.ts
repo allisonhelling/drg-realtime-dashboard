@@ -1,4 +1,7 @@
-import { canSubmitApprovalDecision, canWorkProgram } from "@/lib/auth/guards";
+import {
+  canCreateApprovedDeliverable,
+  canSubmitApprovalDecision,
+} from "@/lib/auth/guards";
 import type { InternalRole } from "@/lib/auth/roles";
 import type { Approval, ApprovalDecision } from "@/lib/models/approval";
 import type { Program } from "@/lib/models/program";
@@ -10,6 +13,7 @@ import {
   listRows,
   lookupBind,
 } from "@/lib/dataverse/client";
+import { updateDeliverableWorkflowStatus } from "@/lib/dataverse/deliverables";
 import { businessRuleError } from "@/lib/errors/business-rules";
 import { listVisiblePrograms } from "@/lib/dataverse/programs";
 
@@ -238,6 +242,11 @@ export async function submitApprovalDecision(input: SubmitApprovalDecisionForUse
   }
 
   await patchApprovalDecision(input);
+  await updateDeliverableWorkflowStatus({
+    deliverableId: input.approval.deliverableId,
+    status:
+      input.decision === "Approved" ? "Pending Acknowledgment" : "Returned",
+  });
 }
 
 export async function acknowledgeApproval(input: {
@@ -254,7 +263,13 @@ export async function acknowledgeApproval(input: {
   if (input.program.status === "Archived") {
     throw new Error("Archived programs cannot be acknowledged.");
   }
-  if (!canWorkProgram(input.user, input.program)) {
+  if (!canCreateApprovedDeliverable(input.user, input.program)) {
     throw new Error("You are not authorized to acknowledge this approval.");
   }
+
+  await updateDeliverableWorkflowStatus({
+    deliverableId: input.approval.deliverableId,
+    status: "Complete",
+    userEmail: input.user.email,
+  });
 }

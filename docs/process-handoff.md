@@ -91,13 +91,14 @@ Most workflow automation is Dataverse-triggered. The app creates or updates the 
 | Flow area | Fires when |
 |---|---|
 | Submission created | A `DRG Submission` document row is created |
+| Ready for review | A DRG user marks a submitted/returned deliverable `In Review` from the app |
 | Access events | A document access log row is created |
 | Reviewer response / signed approval | A child document row is created with `Reviewer Response` or `Signed Approval` role |
 | Approval decision | A current approval row changes to Approved or Rejected |
 | Acknowledgment | A DRG user explicitly acknowledges a signed approval from the app |
 | Program/access maintenance | Program, program access, and deliverable type rows are created or updated |
 
-A typical flow setup posts a Teams or email notification to the right group of people, but a flow can do anything Power Automate supports, including writing a copy of the deliverable into another SharePoint library or kicking off downstream review workflows. Dataverse-triggered flows should link to app URLs, not direct SharePoint file URLs.
+The imported solution separates upload from external review notification. Uploading a DRG submission creates/supersedes document metadata and creates current approval rows. The explicit **Ready for Review** app action moves the deliverable to `In Review`, and the `Deliverable Ready for Review` flow notifies active external reviewers. Dataverse-triggered flows should link to app URLs, not direct SharePoint file URLs.
 
 ## What DRG IT needs to set up
 

@@ -72,11 +72,12 @@ The app creates `drg_documentaccesslog` rows for all uploads. For view/download 
 
 External reviewers can act on current assigned approvals when they have active External Reviewer program access. The app supports:
 
+- Internal "Ready for Review" action on submitted/returned deliverables, which moves the deliverable to `In Review` and lets Power Automate notify active external reviewers.
 - Reviewer response PDF upload.
 - Signed approval PDF upload.
 - Rejection with required comments.
 - Approval only when a signed approval PDF is present.
-- Internal acknowledgment of signed approvals.
+- Program owner/admin acknowledgment of signed approvals.
 
 Acknowledgment calls the configured `POWER_AUTOMATE_APPROVAL_ACKNOWLEDGED_URL` instant flow.
 
@@ -87,6 +88,7 @@ Most workflow automation is Dataverse-triggered or scheduled. The app creates or
 The attached Power App solution package includes flow artifacts such as:
 
 - `DRGSubmissionCreated`
+- `DeliverableReadyForReview`
 - `DocumentAccessLogCreated`
 - `ExternalReviewerDownloadsSubmission`
 - `ReviewerResponsePDFUploaded`

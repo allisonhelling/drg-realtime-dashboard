@@ -264,25 +264,71 @@ Actions:
     - List older current approvals for the deliverable:
       - Action: Dataverse `List rows`
       - Table name: `drg_approvals`
-      - Filter to current approvals for the same deliverable.
-    - For each older approval that is not one of the approvals just created, update the approval:
+      - Filter to current approvals for the same deliverable, excluding approvals tied to the new document.
+    - For each older approval, update the approval:
       - Action: Dataverse `Update a row`
       - Table name: `drg_approvals`
       - Row ID: current item `drg_approvalid`
       - `drg_iscurrent`: No
-    - Send notification to each external reviewer:
-      - Action: Office 365 Outlook `Send an email (V2)`, Teams `Post message`, or your selected notification connector
-      - include program name/number
-      - deliverable title/number
-      - app document link, for example `{APP_URL}/documents/{drg_documentid}`
-      - review due date if provided
 
 Notes:
 
 - This is the core submission flow.
 - The app should prevent non-PDF uploads before the Dataverse row is created.
+- This flow creates reviewer approval assignments, but it does not notify reviewers. Reviewer notification is intentionally delayed until an internal user marks the deliverable ready for review.
 
-## 6. External Reviewer Downloads Submission
+## 6. Deliverable Ready for Review
+
+Flow type: Automated cloud flow
+
+Trigger:
+
+- Dataverse: When a row is added, modified, or deleted
+- Change type: Modified
+- Table name: `drg_deliverables`
+- Scope: Organization
+- Select columns: `drg_status`
+- Filter rows: `statecode eq 0 and drg_status eq <In Review choice value>`
+- Trigger condition:
+  - Deliverable status is `In Review`.
+
+Actions:
+
+- Get the deliverable row:
+  - Action: Dataverse `Get a row by ID`
+  - Table name: `drg_deliverables`
+  - Row ID: deliverable row from the trigger.
+- Get parent program:
+  - Action: Dataverse `Get a row by ID`
+  - Table name: `drg_programs`
+  - Row ID: `_drg_program_value` from the deliverable row.
+- List current DRG submission document:
+  - Action: Dataverse `List rows`
+  - Table name: `drg_documents`
+  - Filter to the current `DRG Submission` document for the deliverable.
+  - Row count: `1`
+- List active external reviewers:
+  - Action: Dataverse `List rows`
+  - Table name: `drg_programaccesses`
+  - Filter to active `External Reviewer` access rows for the program.
+- Select reviewer email addresses from the active external reviewer access rows.
+- Condition: continue only if there is at least one current submission and at least one reviewer email.
+  - If yes:
+    - Send notification to the external reviewer list.
+    - Include program name/number.
+    - Include deliverable title/number.
+    - Include an app document link, for example `{APP_URL}/documents/{drg_documentid}`.
+    - Include an app deliverable link, for example `{APP_URL}/records/{drg_deliverableid}`.
+  - If no:
+    - Do nothing.
+
+Notes:
+
+- This flow supports the app's explicit **Ready for Review** button.
+- The imported solution uses the actual `In Review` choice value from `drg_deliverablestatus`.
+- Notifications should use app links, not SharePoint links.
+
+## 7. External Reviewer Downloads Submission
 
 Flow type: Automated cloud flow
 
@@ -336,7 +382,7 @@ Notes:
 
 - If approval rows are created with `Pending` immediately, the last action may not be needed.
 
-## 7. Reviewer Response PDF Uploaded
+## 8. Reviewer Response PDF Uploaded
 
 Flow type: Automated cloud flow
 
@@ -397,7 +443,7 @@ Notes:
 
 - The reviewer decision flow still controls whether the decision is Approved or Rejected.
 
-## 8. Approval Decision Updated
+## 9. Approval Decision Updated
 
 Flow type: Automated cloud flow
 
@@ -434,7 +480,7 @@ Actions:
     - Update approval decision date if blank.
     - Update the DRG submission document to Returned.
     - Update the deliverable to Returned.
-    - Notify DRG staff/program owner with reviewer comments and an app link to the reviewer response document if provided.
+    - Notify the program owner and active DRG staff with reviewer comments and an app link to the reviewer response document if provided.
   - If no:
     - Continue to the Approved decision branch.
 - Condition branch: if `drg_decision = Approved`:
@@ -445,16 +491,16 @@ Actions:
     - Update approval decision date if blank.
     - Update the DRG submission document to Reviewed.
     - Update the deliverable to Pending Acknowledgment and stamp `drg_lastapprovedon`.
-    - Notify DRG staff/program owner that signed approval is ready for acknowledgment, using an app link to the signed approval document.
+    - Notify the program owner that signed approval is ready for acknowledgment, using an app link to the signed approval document.
   - If no:
     - Do nothing.
 
 Notes:
 
-- The app should prevent Approved without signed PDF and Rejected without comments before the row is saved.
-- This flow is the backup enforcement and status rollup.
+- The app prevents Approved without signed PDF and Rejected without comments before the row is saved.
+- The app also updates the deliverable to `Pending Acknowledgment` or `Returned` immediately; this flow remains backup enforcement for related document status, decision-date stamping, and notifications.
 
-## 9. DRG Acknowledges Signed Approval
+## 10. DRG Acknowledges Signed Approval
 
 Flow type: Instant cloud flow
 
@@ -512,13 +558,13 @@ Actions:
   - accepted document role is `DRG Submission`
   - signed approval document role is `Signed Approval`
   - signed approval belongs to the same deliverable/program context as the accepted submission.
-  - user authorization is enforced in the app before the HTTP request; the flow may optionally add a backup check by matching `acknowledgedByEmail` to active program owner/staff access.
+  - user authorization is enforced in the app before the HTTP request; the flow may optionally add a backup check by matching `acknowledgedByEmail` to an admin or active Program Owner access row.
   - If yes:
     - Update accepted DRG submission document to Final.
     - Update signed approval document to Final or Reviewed.
     - Update deliverable to Complete, close it, and stamp acknowledgment fields.
     - Create a document access log row with action Acknowledge and result Success.
-    - Notify external reviewer(s) and DRG staff that the deliverable is complete, using app links.
+    - Notify the program owner, active DRG staff, and all active external reviewers with access that the deliverable is complete, using app links.
     - Return an HTTP `200` response with body `{ "ok": true, "acknowledged": true }`.
   - If no:
     - Return an HTTP `400` or `409` response with body `{ "ok": false, "error": "<reason>" }`.
@@ -526,10 +572,11 @@ Actions:
 Notes:
 
 - This should be an explicit user action, not automatic on approval.
+- The app also moves the deliverable to `Complete` immediately; this flow remains backup enforcement for final document status, close/stamp fields, access logging, and completion notification.
 - This must be an HTTP-triggered flow, not a manual button flow, because the Next.js app calls it with `fetch()`.
 - Any email links should use the deployed app URL, for example `{APP_URL}/documents/{signedApprovalDocumentId}`, not a SharePoint direct link.
 
-## 10. Reviewer Response Viewed By DRG
+## 11. Reviewer Response Viewed By DRG
 
 Flow type: Automated cloud flow
 
@@ -565,7 +612,7 @@ Actions:
   - If no:
     - Do nothing.
 
-## 11. Review Due Date Overdue Check
+## 12. Review Due Date Overdue Check
 
 Flow type: Scheduled cloud flow
 
@@ -606,7 +653,7 @@ Notes:
 
 - This handles the optional approval due date on the submitted document/review request.
 
-## 12. Deliverable Due Date Overdue Check
+## 13. Deliverable Due Date Overdue Check
 
 Flow type: Scheduled cloud flow
 
@@ -639,7 +686,7 @@ Notes:
 
 - This handles the overall deliverable due date, not the reviewer-specific due date.
 
-## 13. Program Access Revoked
+## 14. Program Access Revoked
 
 Flow type: Automated cloud flow
 
@@ -670,7 +717,7 @@ Actions:
 - Optional: notify program owner that access was revoked:
   - Action: Office 365 Outlook `Send an email (V2)`, Teams `Post message`, or your selected notification connector
 
-## 14. Document Access Log Created
+## 15. Document Access Log Created
 
 Flow type: Automated cloud flow
 
@@ -716,16 +763,17 @@ Notes:
 2. `Deliverable Type Normalize`
 3. `Program Access Normalize`
 4. `DRG Submission Created`
-5. `External Reviewer Downloads Submission`
-6. `Reviewer Response PDF Uploaded`
-7. `Approval Decision Updated`
-8. `DRG Acknowledges Signed Approval`
-9. `Review Due Date Overdue Check`
-10. `Deliverable Due Date Overdue Check`
-11. `Program Archive`
-12. `Program Access Revoked`
-13. `Reviewer Response Viewed By DRG`
-14. `Document Access Log Created`
+5. `Deliverable Ready for Review`
+6. `External Reviewer Downloads Submission`
+7. `Reviewer Response PDF Uploaded`
+8. `Approval Decision Updated`
+9. `DRG Acknowledges Signed Approval`
+10. `Review Due Date Overdue Check`
+11. `Deliverable Due Date Overdue Check`
+12. `Program Archive`
+13. `Program Access Revoked`
+14. `Reviewer Response Viewed By DRG`
+15. `Document Access Log Created`
 
 ## Implementation Notes
 

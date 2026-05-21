@@ -1046,6 +1046,80 @@ describe("production integration layer", () => {
     ).rejects.toMatchObject({ code: "signedApprovalPdfRequired" });
   });
 
+  it("moves the deliverable to Returned when a reviewer rejects an approval", async () => {
+    vi.resetModules();
+    configureDataverseEnv();
+    const patchPayloads: Record<string, unknown>[] = [];
+    global.fetch = createDataverseFetchMock({
+      "drg_approval')/Attributes(LogicalName='drg_decision')": () =>
+        jsonResponse({
+          GlobalOptionSet: {
+            Options: [
+              {
+                Value: 100000001,
+                Label: { UserLocalizedLabel: { Label: "Rejected" } },
+              },
+            ],
+          },
+        }),
+      "drg_deliverable')/Attributes(LogicalName='drg_status')": () =>
+        jsonResponse({
+          GlobalOptionSet: {
+            Options: [
+              {
+                Value: 100000004,
+                Label: { UserLocalizedLabel: { Label: "Returned" } },
+              },
+            ],
+          },
+        }),
+      "/drg_approvals(approval-1)": async (request) => {
+        patchPayloads.push(await request.json());
+        return new Response(null, { status: 204 });
+      },
+      "/drg_deliverables(deliverable-1)": async (request) => {
+        patchPayloads.push(await request.json());
+        return new Response(null, { status: 204 });
+      },
+    });
+
+    const { submitApprovalDecision } = await import("@/lib/dataverse/approvals");
+    const program = createProgram({
+      access: [
+        {
+          id: "access-1",
+          programId: "program-1",
+          email: "reviewer@gov.test",
+          accessRole: "External Reviewer",
+          isActive: true,
+          grantedAt: "",
+          grantedByEmail: "admin@drg.test",
+        },
+      ],
+    });
+
+    await submitApprovalDecision({
+      user: {
+        email: "reviewer@gov.test",
+        internalRoles: ["external-reviewer"],
+      },
+      program,
+      approval: createApproval(),
+      approvalId: "approval-1",
+      decision: "Rejected",
+      comments: "Needs the signed cover page.",
+    });
+
+    expect(patchPayloads).toEqual([
+      expect.objectContaining({
+        drg_decision: 100000001,
+        drg_comments: "Needs the signed cover page.",
+        drg_decisiondate: expect.any(String),
+      }),
+      { drg_status: 100000004 },
+    ]);
+  });
+
   it("creates the expected Dataverse document access log payload", async () => {
     vi.resetModules();
     configureDataverseEnv();

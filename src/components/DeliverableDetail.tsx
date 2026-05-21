@@ -25,6 +25,8 @@ import PersonIcon from "@mui/icons-material/Person";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import EditIcon from "@mui/icons-material/Edit";
 import GavelIcon from "@mui/icons-material/Gavel";
+import RateReviewIcon from "@mui/icons-material/RateReview";
+import SendIcon from "@mui/icons-material/Send";
 import type { Deliverable, DeliverableStatus } from "@/lib/models/deliverable";
 import type { Approval } from "@/lib/models/approval";
 import type { DeliverableDocument, DocumentRole, FileType } from "@/lib/models/document";
@@ -105,8 +107,15 @@ export default function DeliverableDetail({
   const pathname = usePathname();
   const router = useRouter();
   const [isApprovingDraft, setIsApprovingDraft] = useState(false);
+  const [isMarkingReadyForReview, setIsMarkingReadyForReview] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [reviewDialogApproval, setReviewDialogApproval] = useState<Approval | null>(
+    null
+  );
+  const [reviewDecision, setReviewDecision] = useState<"Approved" | "Rejected">(
+    "Approved"
+  );
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [approvalComments, setApprovalComments] = useState<Record<string, string>>({});
   const [approvalFiles, setApprovalFiles] = useState<Record<string, File | null>>({});
@@ -136,6 +145,17 @@ export default function DeliverableDetail({
       role &&
         ["drg-admin", "drg-program-owner", "drg-staff"].includes(role)
     );
+  const hasCurrentDrgSubmission = documents.some(
+    (document) => document.documentRole === "DRG Submission" && document.isCurrentVersion
+  );
+  const activeExternalReviewers =
+    program?.access.filter(
+      (entry) => entry.isActive && entry.accessRole === "External Reviewer"
+    ) ?? [];
+  const canMarkReadyForReview =
+    canSubmit &&
+    hasCurrentDrgSubmission &&
+    ["Submitted", "Returned", "Not Submitted"].includes(d.status);
   const canSeeAccessLog =
     role === "drg-admin" || role === "drg-program-owner" || role === "drg-staff";
   const canApproveDraft =
@@ -219,7 +239,7 @@ export default function DeliverableDetail({
       normalizeEmail(approval.reviewerEmail) === currentUserEmail
   );
   const canAcknowledgeApprovals =
-    role === "drg-admin" || role === "drg-program-owner" || role === "drg-staff";
+    role === "drg-admin" || role === "drg-program-owner";
 
   useEffect(() => {
     if (!isEditing) return;
@@ -350,6 +370,32 @@ export default function DeliverableDetail({
     }
   }
 
+  async function handleMarkReadyForReview() {
+    setIsMarkingReadyForReview(true);
+    setActionError(null);
+
+    try {
+      const response = await fetch(`/api/deliverables/${d.id}/ready-for-review`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const json = await response.json().catch(() => null);
+        throw new Error(json?.error ?? "Failed to mark deliverable ready for review.");
+      }
+
+      router.refresh();
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message
+          : "Failed to mark deliverable ready for review."
+      );
+    } finally {
+      setIsMarkingReadyForReview(false);
+    }
+  }
+
   async function handleDelete() {
     const message =
       documentCount > 0
@@ -450,6 +496,7 @@ export default function DeliverableDetail({
         throw new Error(json?.error ?? "Failed to submit approval decision.");
       }
 
+      setReviewDialogApproval(null);
       router.refresh();
     } catch (error) {
       setActionError(
@@ -718,6 +765,107 @@ export default function DeliverableDetail({
         </DialogActions>
       </Dialog>
 
+      <Dialog
+        open={Boolean(reviewDialogApproval)}
+        onClose={() => setReviewDialogApproval(null)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Review Deliverable</DialogTitle>
+        {reviewDialogApproval && (
+          <>
+            <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
+              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                <Button
+                  color="success"
+                  variant={reviewDecision === "Approved" ? "contained" : "outlined"}
+                  onClick={() => setReviewDecision("Approved")}
+                >
+                  Accept
+                </Button>
+                <Button
+                  color="warning"
+                  variant={reviewDecision === "Rejected" ? "contained" : "outlined"}
+                  onClick={() => setReviewDecision("Rejected")}
+                >
+                  Reject
+                </Button>
+              </Box>
+
+              {reviewDecision === "Rejected" && (
+                <TextField
+                  label="Reason for rejection"
+                  value={approvalComments[reviewDialogApproval.id] ?? ""}
+                  onChange={(event) =>
+                    setApprovalComments((current) => ({
+                      ...current,
+                      [reviewDialogApproval.id]: event.target.value,
+                    }))
+                  }
+                  multiline
+                  minRows={3}
+                  fullWidth
+                  required
+                />
+              )}
+
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                <Button
+                  component="label"
+                  variant="outlined"
+                  size="small"
+                  startIcon={<UploadFileIcon />}
+                >
+                  {approvalFiles[reviewDialogApproval.id] ? "Change PDF" : "Attach PDF"}
+                  <input
+                    hidden
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null;
+                      setApprovalFiles((current) => ({
+                        ...current,
+                        [reviewDialogApproval.id]: file,
+                      }));
+                    }}
+                  />
+                </Button>
+                {approvalFiles[reviewDialogApproval.id] && (
+                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                    {approvalFiles[reviewDialogApproval.id]?.name}
+                  </Typography>
+                )}
+              </Box>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setReviewDialogApproval(null)}>
+                Cancel
+              </Button>
+              <Button
+                color={reviewDecision === "Approved" ? "success" : "warning"}
+                variant="contained"
+                disabled={
+                  approvalBusyId === reviewDialogApproval.id ||
+                  (reviewDecision === "Approved" &&
+                    !approvalFiles[reviewDialogApproval.id]) ||
+                  (reviewDecision === "Rejected" &&
+                    !(approvalComments[reviewDialogApproval.id] ?? "").trim())
+                }
+                onClick={() =>
+                  handleApprovalDecision(reviewDialogApproval, reviewDecision)
+                }
+              >
+                {approvalBusyId === reviewDialogApproval.id
+                  ? "Submitting..."
+                  : reviewDecision === "Approved"
+                  ? "Submit Acceptance"
+                  : "Submit Rejection"}
+              </Button>
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
+
       {canApproveDraft && (
         <Box>
           <Button
@@ -734,7 +882,7 @@ export default function DeliverableDetail({
 
       {/* Submit action */}
       {canSubmit && d.status !== "Complete" && (
-        <Box>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
           <Button
             component={NextLink}
             href={`/submit?programId=${encodeURIComponent(d.programId)}&deliverableId=${encodeURIComponent(d.id)}&returnTo=${encodeURIComponent(pathname)}&returnLabel=Deliverable`}
@@ -747,6 +895,23 @@ export default function DeliverableDetail({
           <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mt: 0.75 }}>
             This will open the submission wizard pre-filled for this deliverable.
           </Typography>
+          {canMarkReadyForReview && (
+            <Box>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<SendIcon />}
+                disabled={isMarkingReadyForReview}
+                onClick={handleMarkReadyForReview}
+              >
+                {isMarkingReadyForReview ? "Notifying Reviewers..." : "Ready for Review"}
+              </Button>
+              <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mt: 0.75 }}>
+                Notifies {activeExternalReviewers.length} external reviewer
+                {activeExternalReviewers.length === 1 ? "" : "s"} assigned to this program.
+              </Typography>
+            </Box>
+          )}
         </Box>
       )}
 
@@ -767,7 +932,6 @@ export default function DeliverableDetail({
                     document.documentRole === "Signed Approval" ||
                     document.documentRole === "Reviewer Response"
                   );
-              const selectedFile = approvalFiles[approval.id];
               const isReviewerApproval = reviewerApprovals.some(
                 (reviewerApproval) => reviewerApproval.id === approval.id
               );
@@ -828,67 +992,19 @@ export default function DeliverableDetail({
                     )}
 
                     {canSubmitDecision && (
-                      <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
-                        <TextField
-                          label="Reviewer comments"
-                          value={approvalComments[approval.id] ?? ""}
-                          onChange={(event) =>
-                            setApprovalComments((current) => ({
-                              ...current,
-                              [approval.id]: event.target.value,
-                            }))
-                          }
-                          multiline
-                          minRows={2}
-                          fullWidth
+                      <Box>
+                        <Button
+                          variant="contained"
                           size="small"
-                        />
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-                          <Button
-                            component="label"
-                            variant="outlined"
-                            size="small"
-                            startIcon={<UploadFileIcon />}
-                          >
-                            {selectedFile ? "Change PDF" : "Attach PDF"}
-                            <input
-                              hidden
-                              type="file"
-                              accept=".pdf,application/pdf"
-                              onChange={(event) => {
-                                const file = event.target.files?.[0] ?? null;
-                                setApprovalFiles((current) => ({
-                                  ...current,
-                                  [approval.id]: file,
-                                }));
-                              }}
-                            />
-                          </Button>
-                          {selectedFile && (
-                            <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                              {selectedFile.name}
-                            </Typography>
-                          )}
-                          <Box sx={{ flexGrow: 1 }} />
-                          <Button
-                            color="warning"
-                            variant="outlined"
-                            size="small"
-                            disabled={isBusy}
-                            onClick={() => handleApprovalDecision(approval, "Rejected")}
-                          >
-                            Return
-                          </Button>
-                          <Button
-                            color="success"
-                            variant="contained"
-                            size="small"
-                            disabled={isBusy || !selectedFile}
-                            onClick={() => handleApprovalDecision(approval, "Approved")}
-                          >
-                            Approve
-                          </Button>
-                        </Box>
+                          startIcon={<RateReviewIcon />}
+                          disabled={isBusy}
+                          onClick={() => {
+                            setReviewDecision("Approved");
+                            setReviewDialogApproval(approval);
+                          }}
+                        >
+                          Review
+                        </Button>
                       </Box>
                     )}
 

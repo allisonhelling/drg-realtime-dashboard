@@ -129,11 +129,12 @@ Business rules:
 - `Default new deliverable`: When a deliverable is created, set `drg_status = Not Submitted` and `drg_isclosed = No`. Dataverse default values.
 - `Staff-created deliverable draft`: When DRG staff create a deliverable, set `drg_status = Draft`. Program owners or DRG admins approve the draft by setting `drg_status = Not Submitted`.
 - `Copy contract reference`: When `drg_program` is selected, set `drg_contractref` from the parent program contract reference. App/Power Automate rule.
-- `Submit deliverable`: When DRG staff upload a current `DRG Submission` document, set `drg_status = Submitted`, increment `drg_currentsubmissionnumber`, stamp `drg_lastsubmittedon`, and notify external reviewer(s). Power Automate.
-- `Start review`: When an external reviewer downloads the current `DRG Submission` document, set `drg_status = In Review`. Power Automate.
-- `Return deliverable`: When current approval `drg_decision = Rejected`, set `drg_status = Returned`. Power Automate.
-- `Pending acknowledgment`: When current approval `drg_decision = Approved` and a signed approval PDF exists, set `drg_status = Pending Acknowledgment` and stamp `drg_lastapprovedon`. Power Automate.
-- `Complete deliverable`: When DRG staff acknowledge the signed approval PDF, set `drg_status = Complete`, `drg_isclosed = Yes`, and stamp the acknowledgment fields. Power Automate.
+- `Submit deliverable`: When DRG staff upload a current `DRG Submission` document, set `drg_status = Submitted`, increment `drg_currentsubmissionnumber`, stamp `drg_lastsubmittedon`, and create current approval rows. Power Automate.
+- `Ready for review`: When an admin, assigned program owner, or DRG staff member marks the deliverable ready from the app, set `drg_status = In Review` and notify active external reviewers assigned to the program. App/Power Automate.
+- `Start review`: When an external reviewer downloads the current `DRG Submission` document, set document review/viewed fields as needed. Power Automate.
+- `Return deliverable`: When current approval `drg_decision = Rejected`, set `drg_status = Returned`. App/Power Automate.
+- `Pending acknowledgment`: When current approval `drg_decision = Approved` and a signed approval PDF exists, set `drg_status = Pending Acknowledgment` and stamp `drg_lastapprovedon`. App/Power Automate.
+- `Complete deliverable`: When an admin or assigned program owner acknowledges the signed approval PDF, set `drg_status = Complete`, `drg_isclosed = Yes`, and stamp the acknowledgment fields. App/Power Automate.
 - `Deliverable overdue`: If current date/time is after `drg_duedate` and `drg_status != Complete`, set status to `Overdue - Waiting on Reviewer` or `Overdue - Waiting on DRG` based on the current blocking party. Scheduled Power Automate.
 - `Allow custom type`: If no matching active deliverable type exists and user is in `drg_staff` or `drg_admin`, allow creation of a new `drg_deliverabletype` row from the type picker. App rule.
 
@@ -229,7 +230,7 @@ Business rules:
 - `Return document`: When related current approval `drg_decision = Rejected`, set the DRG submission document status to `Returned`. Power Automate.
 - `Mark reviewer response viewed`: When DRG staff download a `Reviewer Response` document, set that document status to `Viewed` and stamp viewed fields. Power Automate.
 - `Mark reviewed`: When related current approval `drg_decision = Approved` and a signed approval PDF exists, set the DRG submission document status to `Reviewed`. Power Automate.
-- `Mark final`: When DRG staff acknowledge the signed approval PDF, set the accepted DRG submission document status to `Final`. Power Automate.
+- `Mark final`: When an admin or assigned program owner acknowledges the signed approval PDF, set the accepted DRG submission document status to `Final`. Power Automate.
 - `Document overdue`: If current date/time is after `drg_reviewduedate` and the related approval is still `Pending`, set current DRG submission status to `Overdue - Waiting on Reviewer`. Scheduled Power Automate.
 - `Controlled file access`: End users must not be redirected to `drg_sharepointurl`. All user downloads must go through the web app download API. The app checks Entra role and active `drg_programaccess`, creates a `drg_documentaccesslog` row, retrieves the file from SharePoint using Microsoft Graph app credentials, and streams the file response to the user.
 - `SharePoint uniqueness`: If another row has the same `drg_sharepointdriveid` and `drg_sharepointitemid`, block save through the alternate key. Dataverse alternate key. Error display name: `Duplicate SharePoint Document`. Error message: `This SharePoint file is already linked to a document record.`
@@ -258,7 +259,7 @@ Columns:
 
 Business rules:
 
-- `Create approval requests`: When a DRG submission is created, create one `drg_approval` row per external reviewer assigned to the program/deliverable. Power Automate.
+- `Create approval requests`: When a DRG submission is created, create one current `drg_approval` row per external reviewer assigned to the program/deliverable. Reviewers are notified only after the deliverable is explicitly marked ready for review. Power Automate.
 - `Default approval decision`: When an approval row is created, set `drg_decision = Pending` and `drg_iscurrent = Yes`. Dataverse default values.
 - `Restrict reviewer access`: If reviewer does not have active `drg_programaccess` for the program, do not allow review/download/upload actions. App/security role rule. Error display name: `Reviewer Access Required`. Error message: `You do not have active reviewer access for this program.`
 - `Require rejection comments`: If `drg_decision = Rejected` and `drg_comments` does not contain data, show an error message on `drg_comments`. Dataverse Business Rule. Error display name: `Rejection Reason Required`. Error message: `Enter a reason before rejecting this submission.`

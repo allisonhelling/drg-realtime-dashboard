@@ -85,6 +85,12 @@ export interface UpdateDeliverableInput {
 const DELIVERABLE_STATUS_ENV: Partial<Record<DeliverableStatus, string>> = {
   Draft: "DATAVERSE_DELIVERABLE_STATUS_DRAFT_VALUE",
   "Not Submitted": "DATAVERSE_DELIVERABLE_STATUS_NOT_SUBMITTED_VALUE",
+  Submitted: "DATAVERSE_DELIVERABLE_STATUS_SUBMITTED_VALUE",
+  "In Review": "DATAVERSE_DELIVERABLE_STATUS_IN_REVIEW_VALUE",
+  Returned: "DATAVERSE_DELIVERABLE_STATUS_RETURNED_VALUE",
+  "Pending Acknowledgment":
+    "DATAVERSE_DELIVERABLE_STATUS_PENDING_ACKNOWLEDGMENT_VALUE",
+  Complete: "DATAVERSE_DELIVERABLE_STATUS_COMPLETE_VALUE",
 };
 
 let deliverableStatusOptionValuesPromise:
@@ -397,6 +403,48 @@ export async function updateDeliverable(input: UpdateDeliverableInput) {
       "systemusers",
       assignedToUserId
     );
+  }
+
+  await dataverseFetch<void>(`/drg_deliverables(${input.deliverableId})`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateDeliverableWorkflowStatus(input: {
+  deliverableId: string;
+  status: Extract<
+    DeliverableStatus,
+    "Submitted" | "In Review" | "Returned" | "Pending Acknowledgment" | "Complete"
+  >;
+  userEmail?: string | null;
+}) {
+  if (!isDataverseConfigured()) {
+    throw new Error("Dataverse is not configured for deliverable status updates.");
+  }
+
+  const payload: Record<string, unknown> = {
+    drg_status: await getDeliverableStatusOptionValue(input.status),
+  };
+
+  if (input.status === "In Review") {
+    payload.drg_lastsubmittedon = new Date().toISOString();
+  }
+
+  if (input.status === "Pending Acknowledgment") {
+    payload.drg_lastapprovedon = new Date().toISOString();
+  }
+
+  if (input.status === "Complete") {
+    payload.drg_acknowledgedon = new Date().toISOString();
+    payload.drg_acknowledgedbyemail = normalizeEmail(input.userEmail);
+    const acknowledgedByUserId = await findSystemUserIdByEmail(input.userEmail ?? "");
+    if (acknowledgedByUserId) {
+      payload["drg_acknowledgedby@odata.bind"] = lookupBind(
+        "systemusers",
+        acknowledgedByUserId
+      );
+    }
   }
 
   await dataverseFetch<void>(`/drg_deliverables(${input.deliverableId})`, {

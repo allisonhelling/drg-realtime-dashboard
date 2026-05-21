@@ -165,7 +165,7 @@ Document statuses are:
 - Final
 - Archived
 
-The submit workflow uploads a PDF to SharePoint, creates a Dataverse document metadata row, and lets Power Automate perform downstream workflow actions such as assigning submission numbers, superseding old current submissions, creating approvals, and notifying reviewers.
+The submit workflow uploads a PDF to SharePoint, creates a Dataverse document metadata row, and lets Power Automate assign submission numbers, supersede old current submissions, and create approval rows. Reviewers are notified after an authorized internal user clicks **Ready for Review**, which moves the deliverable to `In Review`.
 
 User downloads do not redirect to raw SharePoint URLs. Downloads go through the app's API so the app can:
 
@@ -200,7 +200,9 @@ External reviewers can submit approval decisions only when:
 - The approval reviewer email matches their signed-in email.
 - The program is not archived.
 
-When a signed approval PDF is available, DRG staff or other authorized internal users can acknowledge it. The acknowledgment action calls the configured Power Automate flow so the deliverable can be completed and the accepted document can be marked final.
+Reviewers use the deliverable review action to accept or reject the submission. Accepting requires a signed approval PDF and moves the deliverable to `Pending Acknowledgment`; rejecting requires comments, optionally accepts a reviewer PDF, and moves the deliverable to `Returned`.
+
+When a signed approval PDF is available, admins and assigned program owners can acknowledge it. The acknowledgment action calls the configured Power Automate flow so the deliverable can be completed and the accepted document can be marked final.
 
 ### 5.8 Calendar and Deadline Tracking
 
@@ -269,9 +271,10 @@ The program access role is intentionally separate from the user's Entra group. T
 | Approve deliverable draft | Yes | Yes, owned programs only | No | No | No |
 | Delete deliverable | Yes | Yes, owned programs only and only when no documents exist | No | No | No |
 | Upload document | Yes | Yes, owned programs only | Yes, assigned programs only | Yes, assigned programs only for reviewer-side uploads | No |
+| Mark deliverable ready for review | Yes | Yes, owned programs only | Yes, assigned programs only | No | No |
 | Download document | Yes | Yes, assigned programs | Yes, assigned programs | Yes, assigned programs | Yes, assigned programs |
 | Submit approval decision | No, unless acting through reviewer-specific workflow not currently modeled | No | No | Yes, only for their current assigned approval | No |
-| Acknowledge signed approval | Authorized through server/API and flow configuration for internal completion workflow | Authorized where assigned and allowed by workflow | Authorized where assigned and allowed by workflow | No | No |
+| Acknowledge signed approval | Yes | Yes, owned programs only | No | No | No |
 | Work archived program | Read only | Read only | Read only | Read only | Read only |
 
 ### 6.4 Archived Program Rules
@@ -356,6 +359,7 @@ Power Automate handles workflow side effects after the app writes the correct Da
 - Deliverable Type Normalize.
 - Program Access Normalize.
 - DRG Submission Created.
+- Deliverable Ready for Review.
 - Document view/download status updates.
 - Reviewer response linking.
 - Signed approval linking.
@@ -386,7 +390,7 @@ The Teams package in `teams-app/` contains a manifest template, icons, build scr
 | `GET/POST /api/deliverable-types` | List/create deliverable types. | Listing requires session; creation is limited to DRG admins, program owners, and DRG staff. |
 | `POST /api/documents/submit` | Upload document metadata and file. | User must be able to upload to the program. |
 | `GET /api/documents/[id]/download` | Stream document file. | User must be able to download from the program; external reviewer access is logged. |
-| `POST /api/approvals/[id]/acknowledge` | Acknowledge signed approval. | Requires session and configured workflow; final enforcement is in app/flow logic. |
+| `POST /api/approvals/[id]/acknowledge` | Acknowledge signed approval. | DRG admin or assigned program owner; requires configured acknowledgment flow. |
 | `GET /api/users/program-owners` | Search eligible program owners. | DRG admin only. |
 | `GET /api/users/program-collaborators` | Search eligible collaborators. | Requires signed-in session and configured Graph groups. |
 
