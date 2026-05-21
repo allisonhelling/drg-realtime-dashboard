@@ -58,8 +58,8 @@ disabled, fall back to Option A.
 
 ## Auth and tenant checklist
 
-The Teams app host, Auth.js URL, guest invitation URL, and Entra redirect URL
-must all describe the same deployed app:
+The Teams app host, Auth.js URL, app URL, and Entra redirect URL must all
+describe the same deployed app:
 
 - `AUTH_URL=https://<deployed-host>`
 - `APP_URL=https://<deployed-host>`

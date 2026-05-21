@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { canCreateProgram } from "@/lib/auth/guards";
-import { listProgramOwnerPrincipals } from "@/lib/graph/invitations";
+import { listProgramOwnerPrincipals } from "@/lib/graph/users";
 
 export async function GET(request: Request) {
   const session = await auth();

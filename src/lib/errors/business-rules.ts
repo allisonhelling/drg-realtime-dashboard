@@ -75,7 +75,7 @@ const BUSINESS_RULE_PATTERNS: Array<{
     code: "externalUserNotReady",
     patterns: [
       /external user not ready/i,
-      /external reviewer.*entra guest/i,
+      /external reviewer.*entra group/i,
       /external_user group/i,
       /collaborator.*reviewer.*entra/i,
     ],

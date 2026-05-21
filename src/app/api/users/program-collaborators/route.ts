@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { hasAnyRole } from "@/lib/auth/roles";
-import { searchProgramCollaboratorPrincipals } from "@/lib/graph/invitations";
+import { searchProgramCollaboratorPrincipals } from "@/lib/graph/users";
 
 export async function GET(request: Request) {
   const session = await auth();

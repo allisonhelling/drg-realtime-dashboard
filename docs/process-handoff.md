@@ -4,7 +4,7 @@
 
 ## What we built
 
-DRG IMS is a web application for managing CDRL/SDRL contract deliverables. Site managers submit signed PDFs through the app, program owners and external (government) reviewers retrieve them, and every access is recorded as an immutable entry in the audit log. The app is live for the duration of the capstone at https://drg-ims.vercel.app and it's designed to move over to a DRG-owned host without code changes.
+DRG IMS is a web application for managing CDRL/SDRL contract deliverables. Site managers submit signed PDFs through the app, program owners and external (government) reviewers retrieve them, and uploads plus external reviewer download/view activity are recorded as immutable entries in the audit log. The app is live for the duration of the capstone at https://drg-ims.vercel.app and it's designed to move over to a DRG-owned host without code changes.
 
 The product exists because the current submission process runs on email, and email doesn't hold up well as evidence. A typical CDRL today goes from a site to the on-site government rep (CORE) to the NOC and then out to the customer, with each stop adding more people to the CC line and more copies of the same PDF flying around. When the customer later says they didn't receive something, there's no clean way to prove they did, so DRG ends up taking the grading hit. The IMS replaces that chain with one canonical document per deliverable and a per-document access log that any DRG admin can pull up and hand to the customer.
 
@@ -23,7 +23,7 @@ Browser
 Next.js application layer
   |  Auth.js sign-in, server-side role guards, page rendering
   |
-  +-->  Microsoft Entra ID       identity, role claims, B2B guest invites
+  +-->  Microsoft Entra ID       identity, role claims, reviewer group membership
   +-->  Microsoft Dataverse      programs, deliverables, audit log, approvals
   +-->  SharePoint via Graph     submitted PDFs, organized by program/deliverable
   +-->  Power Automate           submission, download, approval, access notifications
@@ -37,7 +37,7 @@ The four Microsoft services each own a clear slice. Entra ID is the identity pro
 
 ### Authentication
 
-The app uses Auth.js with the Microsoft Entra ID provider, so there's no second password and no application-managed credential store. DRG employees sign in with their normal DRG Microsoft account, and external reviewers come in through B2B guest accounts. Auth.js handles the OIDC handshake, session storage, and CSRF protection, and our code reads the resulting claims to decide what the user can do.
+The app uses Auth.js with the Microsoft Entra ID provider, so there's no second password and no application-managed credential store. DRG employees and external reviewers sign in through accounts that already exist in DRG's tenant. Auth.js handles the OIDC handshake, session storage, and CSRF protection, and our code reads the resulting claims to decide what the user can do.
 
 ### Role tiers
 
@@ -46,20 +46,20 @@ There are four internal roles plus one effective role:
 - **drg-admin** is granted by membership in the `ENTRA_DRG_ADMIN_GROUP_ID` security group. Admins can do everything, including create and delete programs, manage accounts, and access every program regardless of who's assigned to it.
 - **drg-program-owner** owns one or more programs and can add or remove staff and reviewers on the programs they own. Granted by `ENTRA_DRG_PROGRAM_OWNER_GROUP_ID`.
 - **drg-staff** sees only programs they've been added to and submits deliverables on those. Granted by `ENTRA_DRG_STAFF_GROUP_ID`.
-- **external-reviewer** is the role for government and customer reviewers who come in through B2B guest accounts. They can view, download, and re-upload signed copies on programs they've been granted access to, but they can't delete anything. Granted by `ENTRA_EXTERNAL_REVIEWER_GROUP_ID`.
+- **external-reviewer** is the role for government and customer reviewers who have been added to DRG's tenant and assigned to the configured external reviewer group. They can view, download, and re-upload signed copies on programs they've been granted access to, but they can't delete anything. Granted by `ENTRA_EXTERNAL_REVIEWER_GROUP_ID`.
 - **gov-reviewer** is an effective role applied at runtime to authenticated users whose email shows up in a program's access list but who don't hold any of the internal Entra roles above. It exists so one-off reviewers don't have to be added to a security group, just to the program access list.
 
 Role-claim mapping lives in `src/lib/auth/roles.ts` and accepts both Entra app-role assignments and group claims, so DRG IT can grant roles either way. Common naming variants are accepted too, since the app role names DRG eventually settles on may not be the exact strings we put in the code.
 
 ### External reviewer onboarding
 
-When an admin or program owner grants a reviewer access to a program, the app calls `Microsoft Graph /invitations` and creates a B2B guest invitation. The reviewer gets a Microsoft invitation email and follows the redemption link, at which point Entra recognizes the reviewer's home tenant and federates the sign-in to their identity provider. The reviewer authenticates with whatever credentials they already use at their own organization, and Entra accepts the resulting token. From DRG's side, a guest user shows up in the tenant with the right permissions, and from the reviewer's side, they didn't have to sign up for or remember a new account.
+External reviewers must be pre-created in DRG's Entra tenant and assigned to the security group identified by `ENTRA_EXTERNAL_REVIEWER_GROUP_ID`. The app does not create tenant accounts. When an admin or program owner grants program access, the app uses Microsoft Graph to verify that the selected user already exists and belongs to one of the configured program access groups.
 
-DRG never holds a password for an external reviewer, which was the main thing the team wanted out of the auth design. It also means revoking access is a matter of removing the guest from the right security group or the program access list, not deleting an account.
+Revoking application-level access is handled by deactivating the `drg_programaccess` row. Removing the user from the Entra external reviewer group blocks future reviewer access more broadly.
 
 ### Audit logging
 
-Every document open writes a row to the `drg_documentaccesslog` Dataverse table before the file streams to the user. The entry captures who opened it, what they opened, the action type (opened, downloaded, acknowledged), the timestamp, and the program context. The app never deletes log entries, and a DRG admin can pull up the full timeline for any document on the document detail page. This is the evidence chain for the dispute scenario, where a customer claims they didn't receive a CDRL and DRG needs to show otherwise.
+The app writes `drg_documentaccesslog` rows for all uploads and for external reviewer view/download activity before the file streams to the reviewer. Each entry captures who acted, what document was involved, the action type, the timestamp, and the program context. The app never deletes log entries during normal use, and a DRG admin can pull up the timeline for any document on the document detail page. This is the evidence chain for the dispute scenario, where a customer claims they didn't receive a CDRL and DRG needs to show otherwise.
 
 ## Data and documents
 
@@ -104,7 +104,7 @@ To run the app in DRG's tenant, the following needs to exist. Items in **bold** 
 ### Entra ID
 
 - An **app registration** for the web app with redirect URI `https://<host>/api/auth/callback/microsoft-entra-id`, a client secret or certificate, and the delegated scopes `openid`, `profile`, `email`, and `User.Read`. App role assignments or group claims need to be included in the ID/access token so the app sees them.
-- An **app registration** for Microsoft Graph invitations with the application permissions `User.Invite.All`, `User.Read.All`, and `GroupMember.Read.All`, with admin consent granted.
+- An **app registration** for Microsoft Graph user and group lookup with the application permissions needed to read users and group membership, with admin consent granted.
 - An **app registration** for Dataverse, set up as a Dataverse Application User with create, read, update, and append on the `drg_*` tables. Delete should stay restricted to elevated admins, since the app's own role checks already gate deletion to admin-only.
 - An **app registration** for SharePoint via Graph with `Sites.Selected` (preferred) or `Files.ReadWrite.All`, admin consent granted. If `Sites.Selected` is used, the chosen site needs to be granted access to the registration explicitly through PowerShell or a Graph call.
 - Four **security groups** populated with the right people: DRG Admin, DRG Program Owner, DRG Staff, and External Reviewer. The IDs of these groups go into the env config.
@@ -119,7 +119,7 @@ A document library on whichever SharePoint site DRG wants to use for IMS storage
 
 ### Power Automate
 
-Five HTTP-triggered cloud flows, one per event in the table above. Each flow's trigger URL goes into the env config. The flow contents are entirely up to DRG, since they're where DRG-specific notification routing, escalation, and downstream logic live.
+Import the supplied Power Automate solution package. Most flows are Dataverse-triggered or scheduled. The app directly calls only the `DRG Acknowledges Signed Approval` instant flow, whose trigger URL goes into `POWER_AUTOMATE_APPROVAL_ACKNOWLEDGED_URL`.
 
 ### Hosting
 
@@ -179,16 +179,21 @@ SHAREPOINT_FOLDER_STRATEGY
 POWER_AUTOMATE_APPROVAL_ACKNOWLEDGED_URL
 ```
 
-**Microsoft Graph for B2B invitations**
+**Microsoft Graph for user/group lookup**
 
 ```
 AZURE_TENANT_ID
 AZURE_GRAPH_CLIENT_ID
 AZURE_GRAPH_CLIENT_SECRET
+```
+
+**Application links**
+
+```
 APP_URL
 ```
 
-`APP_URL` is the public URL guests are redirected to after they redeem an invitation, and it usually matches `AUTH_URL`.
+`APP_URL` is the public URL used in app-generated links and usually matches `AUTH_URL`.
 
 ## Deployment and distribution
 
@@ -224,8 +229,8 @@ The repo has a multi-language test suite, run via `pnpm test:all`. TypeScript te
 | Dataverse data model and CRUD | Production-ready, real Web API client with secret or certificate auth |
 | SharePoint upload and download | Production-ready, real Microsoft Graph integration |
 | Power Automate triggers (app side) | Production-ready, flows must be authored on the DRG side |
-| External reviewer invitations | Production-ready, real Graph `/invitations` calls |
-| Immutable audit log | Production-ready, written to `drg_documentaccesslog` |
+| External reviewer prerequisite | Production-ready, reviewers must already exist in Entra and belong to the configured external reviewer group |
+| Immutable audit log | Production-ready, uploads and external reviewer download/view activity are written to `drg_documentaccesslog` |
 | Mock connectors | Retained as fallback for unconfigured environments, safe to leave as-is once env is fully populated |
 | Multi-factor authentication | Inherited from DRG's Entra conditional access policies, not enforced inside the app |
 | Branding | Default DRG logos and a navy theme, further refinement is at DRG's discretion |
@@ -233,7 +238,6 @@ The repo has a multi-language test suite, run via `pnpm test:all`. TypeScript te
 ## Glossary
 
 - **Auth.js** is the open-source authentication library for Next.js, formerly NextAuth. The app uses it with the Microsoft Entra ID provider.
-- **B2B federation** is Microsoft's pattern for letting guest users sign in with credentials from their home organization's identity provider. DRG never holds the guest's password.
 - **CDRL / SDRL** are Contract Data Requirements List and Subcontract Data Requirements List, the two deliverable categories the IMS exists to manage.
 - **Entra ID** is Microsoft's identity service, formerly Azure Active Directory.
 - **MUI** is Material UI, the React component library used for the app's interface.

@@ -161,7 +161,7 @@ Keep `systemuser` read access because the model uses lookups to `systemuser` for
 
 Keep `Append To` on `systemuser` where the app creates records that reference a user lookup, such as `drg_programaccess.drg_user`, `drg_approval.drg_revieweruser`, or `drg_document.drg_uploadedby`.
 
-`contact` is not used by the current data model. External reviewers are Entra B2B guest users, so they appear as Dataverse users in `systemuser`, not as `contact` rows. Leave `contact` as None unless DRG adds a separate external reviewer directory or customer/contact management feature.
+`contact` is not used by the current data model. External reviewers are expected to be pre-created in Entra and assigned to the configured external reviewer group, so any Dataverse user lookup references point at `systemuser`, not `contact`. Leave `contact` as None unless DRG adds a separate external reviewer directory or customer/contact management feature.
 
 ## Tenant Migration Notes
 

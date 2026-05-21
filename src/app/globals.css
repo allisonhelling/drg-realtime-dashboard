@@ -2,6 +2,9 @@ html,
 body {
   max-width: 100vw;
   overflow-x: hidden;
+  --font-geist-sans: Arial, Helvetica, sans-serif;
+  --font-geist-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo,
+    monospace;
 }
 
 * {

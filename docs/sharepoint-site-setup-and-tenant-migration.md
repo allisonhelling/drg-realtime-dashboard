@@ -350,10 +350,10 @@ Validate data:
 - The Dataverse alternate key does not block migrated rows because of duplicate SharePoint IDs.
 - `/documents` lists migrated documents.
 - `/documents/[id]` opens migrated document details.
-- Download actions create `drg_documentaccesslog` rows.
+- External reviewer download actions create `drg_documentaccesslog` rows.
 - External reviewers can only access assigned program documents.
 - DRG staff can upload a new PDF after migration.
-- Power Automate submission/download flows still trigger in the target environment.
+- Power Automate submission and access-log flows still trigger in the target environment.
 
 ## Rollback Plan
 

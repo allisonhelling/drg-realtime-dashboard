@@ -8,10 +8,10 @@ Do not manually create Dataverse-generated columns such as table primary key GUI
 
 Entra groups provide broad app-level permissions:
 
-- `drg_admin`: can create programs, create/manage Entra guest accounts, and assign program owners.
+- `drg_admin`: can create programs, manage program access, and assign program owners.
 - `drg_program_owner`: can manage access for programs where they are listed as the owner.
 - `drg_staff`: can work with assigned programs and can add deliverable types.
-- `external_user`: guest users who can view/upload to programs where they have active program access.
+- `external_user`: external reviewers who already exist in Entra and can view/upload to programs where they have active program access.
 
 Program-specific access lives in `drg_programaccess`. The Entra group says what a user is allowed to do in general; `drg_programaccess` says which programs they can do it on.
 
@@ -170,7 +170,7 @@ Business rules:
 - `Prevent duplicate program access`: If another row has the same `drg_program` and `drg_email`, block save through the alternate key. Dataverse alternate key. Error display name: `Duplicate Program Access`. Error message: `This user already has access to this program.`
 - `Deactivate access`: When access is revoked, set `drg_isactive = No` and stamp `drg_revokedon`, `drg_revokedby`, and `drg_revokedbyemail`. Power Automate.
 - `Restrict access grants`: If user is not a program owner for that program and not in `drg_admin`, do not allow creating program access rows. App/security role rule. Error display name: `Access Grant Restricted`. Error message: `Only the program owner or a DRG admin can add users to this program.`
-- `External guest prerequisite`: Before adding an external user to `drg_programaccess`, admin must create the Entra guest account and add it to `external_user`. Admin process/security rule. Error display name: `External User Not Ready`. Error message: `This external user must be created as an Entra guest and added to the external_user group before they can be added to a program.`
+- `External reviewer prerequisite`: Before adding an external reviewer to `drg_programaccess`, DRG must add the user to the tenant and assign them to `external_user`. Admin process/security rule. Error display name: `External User Not Ready`. Error message: `This external user must already exist in Entra and belong to the external_user group before they can be added to a program.`
 
 ## 5. `drg_document`
 

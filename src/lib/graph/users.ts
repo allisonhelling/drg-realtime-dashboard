@@ -308,32 +308,3 @@ export async function getExternalReviewerPrincipal(
     displayName: user.displayName,
   };
 }
-
-export async function inviteExternalReviewer(email: string) {
-  const appUrl = process.env.APP_URL;
-
-  if (!appUrl) {
-    throw new Error("Missing APP_URL for Microsoft Graph invitations.");
-  }
-
-  const token = await getGraphToken();
-
-  const res = await fetch("https://graph.microsoft.com/v1.0/invitations", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      invitedUserEmailAddress: email,
-      inviteRedirectUrl: appUrl,
-      sendInvitationMessage: true,
-    }),
-  });
-
-  if (!res.ok) {
-    throw new Error(`Failed to invite reviewer: ${await res.text()}`);
-  }
-
-  return res.json();
-}

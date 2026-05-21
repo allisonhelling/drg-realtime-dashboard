@@ -9,7 +9,7 @@ The current repository implements the web application layer in Next.js and integ
 - Microsoft Entra ID for authentication and role claims.
 - Microsoft Dataverse for structured program, deliverable, approval, document metadata, access, and audit records.
 - SharePoint document libraries for file storage.
-- Microsoft Graph for SharePoint file access, Entra group membership lookup, and external reviewer/user lookup workflows.
+- Microsoft Graph for SharePoint file access, Entra group membership lookup, and tenant user lookup workflows.
 - Power Automate for workflow automation, status transitions, notifications, and archival side effects.
 - Microsoft Teams packaging so the dashboard can run as a Teams personal app or configurable channel tab.
 
@@ -36,7 +36,7 @@ The system supports four core goals:
 
 1. Give DRG staff and program owners a permanent, searchable record of CDRL/SDRL deliverables and submissions.
 2. Give external reviewers scoped access to only the programs and documents they are assigned to review.
-3. Preserve proof of document access by forcing downloads through the application and writing access logs.
+3. Preserve proof of document delivery by forcing downloads through the application and writing access logs for uploads plus external reviewer view/download activity.
 4. Reduce email-based coordination by using dashboard views, status tracking, Teams notifications, and Power Automate workflows.
 
 ## 4. Main Application Areas
@@ -111,7 +111,7 @@ Program access is stored as application data, not as direct Dataverse table acce
 
 Admins can manage access for any program. Program owners can manage access for programs where they are assigned as an active Program Owner. Users cannot revoke their own access through the client-side access controls.
 
-The app can search configured Entra groups for eligible program owners, staff, and external reviewers through Microsoft Graph. External reviewers are expected to exist as Entra B2B guests and belong to the configured external reviewer group before being granted program access.
+The app can search configured Entra groups for eligible program owners, staff, and external reviewers through Microsoft Graph. External reviewers must already exist in DRG's tenant and belong to the configured external reviewer group before program access can be granted. The app verifies this prerequisite; it does not create tenant users.
 
 ### 5.5 Deliverable Management
 
@@ -170,9 +170,11 @@ The submit workflow uploads a PDF to SharePoint, creates a Dataverse document me
 User downloads do not redirect to raw SharePoint URLs. Downloads go through the app's API so the app can:
 
 - Verify the user's role and active program access.
-- Write a document access log.
+- Write a document access log for external reviewer downloads.
 - Fetch the file from SharePoint using app credentials.
 - Stream the file back to the user.
+
+Uploads are always written to `drg_documentaccesslog`. Download/view logs are intentionally focused on external reviewer activity, which is the audit evidence DRG needs for customer receipt disputes.
 
 ### 5.7 Approval and Acknowledgment Workflow
 
@@ -301,7 +303,7 @@ Program owners, DRG staff, and external reviewers should not receive direct Data
 | `drg_deliverabletype` | Configurable CDRL/SDRL/custom deliverable type list. |
 | `drg_deliverable` | Contractual submission requirement. |
 | `drg_document` | Metadata for a SharePoint-backed document. |
-| `drg_documentaccesslog` | Audit row for view/download/upload/delete/acknowledge actions. |
+| `drg_documentaccesslog` | Audit row for uploads, external reviewer view/download activity, and workflow actions such as acknowledgment where configured. |
 | `drg_approval` | Reviewer decision and approval history. |
 | `systemuser` | Dataverse user lookup target for owners, creators, reviewers, and audit fields. |
 
@@ -341,7 +343,7 @@ Microsoft Graph is used for:
 - App-only SharePoint upload/download operations.
 - Searching program owner and collaborator group members.
 - Verifying user group membership for access assignment.
-- Supporting external reviewer/guest workflows.
+- Supporting external reviewer group-membership checks.
 
 ### 8.4 Power Automate
 
@@ -381,7 +383,7 @@ The Teams package in `teams-app/` contains a manifest template, icons, build scr
 | `POST /api/deliverables/[id]/approve-draft` | Approve staff-created draft. | Admin or assigned program owner. |
 | `GET/POST /api/deliverable-types` | List/create deliverable types. | Listing requires session; creation is limited to DRG admins, program owners, and DRG staff. |
 | `POST /api/documents/submit` | Upload document metadata and file. | User must be able to upload to the program. |
-| `GET /api/documents/[id]/download` | Stream document file. | User must be able to download from the program; access is logged. |
+| `GET /api/documents/[id]/download` | Stream document file. | User must be able to download from the program; external reviewer access is logged. |
 | `POST /api/approvals/[id]/acknowledge` | Acknowledge signed approval. | Requires session and configured workflow; final enforcement is in app/flow logic. |
 | `GET /api/users/program-owners` | Search eligible program owners. | DRG admin only. |
 | `GET /api/users/program-collaborators` | Search eligible collaborators. | Requires signed-in session and configured Graph groups. |
@@ -398,8 +400,8 @@ The application depends on environment variables for production integrations. Im
 | Dataverse | `DATAVERSE_ENVIRONMENT_URL`, `DATAVERSE_TENANT_ID`, `DATAVERSE_CLIENT_ID`, `DATAVERSE_CLIENT_SECRET`, or certificate credential variables |
 | SharePoint | `SHAREPOINT_TENANT_ID`, `SHAREPOINT_CLIENT_ID`, `SHAREPOINT_CLIENT_SECRET`, `SHAREPOINT_SITE_ID`, `SHAREPOINT_SITE_URL`, `SHAREPOINT_DRIVE_ID` |
 | SharePoint organization | `SHAREPOINT_DOCUMENT_FOLDER`, `SHAREPOINT_FOLDER_STRATEGY` |
-| Power Automate | `POWER_AUTOMATE_*_URL` variables for configured HTTP-triggered flows |
-| Graph guest/user lookup | `AZURE_TENANT_ID`, `AZURE_GRAPH_CLIENT_ID`, `AZURE_GRAPH_CLIENT_SECRET`, `APP_URL` |
+| Power Automate | `POWER_AUTOMATE_APPROVAL_ACKNOWLEDGED_URL` for the one app-called instant flow; other imported flows are Dataverse-triggered or scheduled |
+| Graph user/group lookup | `AZURE_TENANT_ID`, `AZURE_GRAPH_CLIENT_ID`, `AZURE_GRAPH_CLIENT_SECRET` |
 
 When Dataverse or SharePoint is not configured, development paths may use mock connectors or disable upload behavior depending on the feature.
 
@@ -450,7 +452,7 @@ Deployment requires:
 - Entra app roles or group claims configured for all internal roles.
 - Dataverse application user with the `DRG IMS Web App Service` role.
 - SharePoint app registration with Graph access to the target site and drive.
-- Power Automate flows configured with HTTP trigger URLs where needed.
+- Power Automate solution imported, with `POWER_AUTOMATE_APPROVAL_ACKNOWLEDGED_URL` configured for the one app-called instant flow.
 - Rebuilt Teams package for the final host.
 
 ## 14. Related Documentation

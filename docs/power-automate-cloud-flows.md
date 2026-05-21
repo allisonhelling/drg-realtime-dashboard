@@ -4,7 +4,7 @@ This document lists the cloud flows needed to support the Dataverse workflow in 
 
 Use Dataverse trigger filters wherever possible so flows only run for relevant rows. Use the app for immediate user-facing validation when the user needs a friendly error before save.
 
-This file describes what each flow action does at an implementation level. Use `power-automate-cloud-flows-detailed.md` for exact Power Automate action names and expressions.
+This file describes what each flow action does at an implementation level. The supplied solution package contains Dataverse-triggered and scheduled flows for most workflow side effects. The Next.js app directly calls only the `DRG Acknowledges Signed Approval` instant flow through `POWER_AUTOMATE_APPROVAL_ACKNOWLEDGED_URL`.
 
 Power Automate usually shows Dataverse table names as plural display names. The schema names in this document are singular, so select the matching plural table in Power Automate, for example:
 
@@ -533,6 +533,8 @@ Notes:
 
 Flow type: Automated cloud flow
 
+Implementation note: the current app logs uploads and external reviewer view/download activity. It does not create access-log rows for ordinary internal DRG downloads/views, so this flow only fires if DRG later enables internal view/download logging or creates equivalent log rows from another process.
+
 Trigger:
 
 - Dataverse: When a row is added, modified, or deleted
@@ -706,7 +708,7 @@ Actions:
 
 Notes:
 
-- This is a general audit/logging helper. The reviewer download and reviewer response viewed flows can be separate flows or child branches from this one.
+- This is a general audit/logging helper. The reviewer download flow runs from external reviewer access logs. The reviewer response viewed flow requires internal DRG view/download log rows if DRG chooses to track that event.
 
 ## Recommended Build Order
 

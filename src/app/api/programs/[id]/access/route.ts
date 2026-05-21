@@ -5,7 +5,7 @@ import { normalizeEmail } from "@/lib/auth/roles";
 import { createProgramAccess, listProgramAccess, revokeProgramAccess } from "@/lib/dataverse/program-access";
 import { getProgramById } from "@/lib/dataverse/programs";
 import { businessRuleResponse, errorResponse } from "@/lib/errors/business-rules";
-import { getProgramCollaboratorPrincipal } from "@/lib/graph/invitations";
+import { getProgramCollaboratorPrincipal } from "@/lib/graph/users";
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);

@@ -529,7 +529,7 @@ function ConfirmationStep({
 
       <Alert severity={warning ? "warning" : "success"} sx={{ mb: 3 }}>
         {warning ??
-          `Government reviewers with access to ${program.name} have been notified. This submission serves as irrefutable proof of delivery; the access log will record every view and download.`}
+          `Government reviewers with access to ${program.name} have been notified. This submission is now stored as the system record; uploads and external reviewer download activity are logged.`}
       </Alert>
 
       <Divider sx={{ mb: 3 }} />
