@@ -16,6 +16,7 @@ import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import BusinessCenterIcon from "@mui/icons-material/BusinessCenter";
 import Inventory2Icon from "@mui/icons-material/Inventory2";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
+import QueryStatsIcon from "@mui/icons-material/QueryStats";
 import { useRole } from "@/lib/context/role-context";
 
 const NAV_ITEMS = [
@@ -25,6 +26,7 @@ const NAV_ITEMS = [
   null,
   { label: "Deliverables", href: "/records", icon: DescriptionIcon },
   { label: "Documents", href: "/documents", icon: FolderOpenIcon },
+  { label: "Analytics", href: "/analytics", icon: QueryStatsIcon },
   { label: "Calendar", href: "/calendar", icon: CalendarMonthIcon },
 ];
 

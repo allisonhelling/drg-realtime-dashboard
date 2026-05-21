@@ -23,6 +23,7 @@ import LocationOnIcon from "@mui/icons-material/LocationOn";
 import AccessRestrictedNotice from "@/components/AccessRestrictedNotice";
 import DocumentsTable from "@/components/DocumentsTable";
 import CreateDeliverableDialog from "@/components/CreateDeliverableDialog";
+import AnalyticsSummaryCards from "@/components/AnalyticsSummaryCards";
 import ProgramOwnerAutocomplete, {
   type ProgramOwnerOption,
 } from "@/components/ProgramOwnerAutocomplete";
@@ -161,6 +162,23 @@ export default function ProgramDetailView({
       {}
     );
   const overdue = deliverables.filter((d) => d.status.startsWith("Overdue")).length;
+  const completedDeliverables = deliverables.filter(
+    (deliverable) => deliverable.status === "Complete"
+  ).length;
+  const pendingReview = deliverables.filter((deliverable) =>
+    ["Submitted", "In Review"].includes(deliverable.status)
+  ).length;
+  const submissionsByMonth = documents.reduce<Record<string, number>>(
+    (counts, document) => {
+      const month = document.uploadedAt.slice(0, 7);
+      if (!month) return counts;
+      return { ...counts, [month]: (counts[month] ?? 0) + 1 };
+    },
+    {}
+  );
+  const busiestMonth = Object.entries(submissionsByMonth).sort(
+    ([, a], [, b]) => b - a
+  )[0];
   const mayManageProgram =
     canManageProgramAccess(activeProgram.id) ||
     role === "drg-admin" ||
@@ -356,6 +374,17 @@ export default function ProgramDetailView({
           </Box>
         </Box>
       </Box>
+
+      <AnalyticsSummaryCards
+        cards={[
+          { label: "Documents Submitted", value: documents.length },
+          { label: "Deliverables Created", value: deliverables.length },
+          { label: "Deliverables Completed", value: completedDeliverables },
+          { label: "Pending Review", value: pendingReview, alert: pendingReview > 0 },
+          { label: "Overdue", value: overdue, alert: overdue > 0 },
+          { label: "Top Month", value: busiestMonth ? `${busiestMonth[0]} (${busiestMonth[1]})` : "None" },
+        ]}
+      />
 
       <Box
         sx={{

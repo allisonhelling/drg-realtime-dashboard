@@ -25,29 +25,46 @@ export const ROLE_LABELS: Record<EffectiveRole, string> = {
 
 const ENTRA_APP_ROLE_TO_INTERNAL_ROLE: Record<string, InternalRole> = {
   "drg-admin": "drg-admin",
+  "drg-admins": "drg-admin",
   drg_admin: "drg-admin",
   drg_admins: "drg-admin",
   "DRG Admin": "drg-admin",
   "drg_program_owner": "drg-program-owner",
   "drg-program-owner": "drg-program-owner",
+  "drg-program-owners": "drg-program-owner",
   drg_program_owners: "drg-program-owner",
   "DRG Program Owner": "drg-program-owner",
   "drg-staff": "drg-staff",
   drg_staff: "drg-staff",
   "DRG Staff": "drg-staff",
   "external-reviewer": "external-reviewer",
+  "external-reviewers": "external-reviewer",
   external_reviewer: "external-reviewer",
   external_reviewers: "external-reviewer",
+  "external-user": "external-reviewer",
   external_user: "external-reviewer",
   "DRG External Reviewer": "external-reviewer",
 };
 
-const ENTRA_GROUP_TO_INTERNAL_ROLE: Record<string, InternalRole> = {
-  [process.env.ENTRA_DRG_ADMIN_GROUP_ID ?? ""]: "drg-admin",
-  [process.env.ENTRA_DRG_PROGRAM_OWNER_GROUP_ID ?? ""]: "drg-program-owner",
-  [process.env.ENTRA_DRG_STAFF_GROUP_ID ?? ""]: "drg-staff",
-  [process.env.ENTRA_EXTERNAL_REVIEWER_GROUP_ID ?? ""]: "external-reviewer",
-};
+function normalizeRoleClaim(role: string) {
+  return role.trim().replace(/[\s_]+/g, "-").toLowerCase();
+}
+
+function getEntraGroupToInternalRole(): Record<string, InternalRole> {
+  return Object.fromEntries(
+    [
+      [process.env.ENTRA_DRG_ADMIN_GROUP_ID, "drg-admin"],
+      [process.env.ENTRA_DRG_PROGRAM_OWNER_GROUP_ID, "drg-program-owner"],
+      [process.env.ENTRA_DRG_STAFF_GROUP_ID, "drg-staff"],
+      [process.env.ENTRA_EXTERNAL_REVIEWER_GROUP_ID, "external-reviewer"],
+    ]
+      .filter(
+        (entry): entry is [string, InternalRole] =>
+          typeof entry[0] === "string" && entry[0].trim().length > 0
+      )
+      .map(([groupId, role]) => [groupId.trim(), role])
+  );
+}
 
 export function normalizeEmail(email: string | null | undefined) {
   return String(email ?? "").trim().toLowerCase();
@@ -60,12 +77,15 @@ export function mapClaimsToInternalRoles(claims: Record<string, unknown>): Inter
   const mapped = new Set<InternalRole>();
 
   for (const role of roles) {
-    const internalRole = ENTRA_APP_ROLE_TO_INTERNAL_ROLE[role];
+    const internalRole =
+      ENTRA_APP_ROLE_TO_INTERNAL_ROLE[role] ??
+      ENTRA_APP_ROLE_TO_INTERNAL_ROLE[normalizeRoleClaim(role)];
     if (internalRole) mapped.add(internalRole);
   }
 
+  const groupToInternalRole = getEntraGroupToInternalRole();
   for (const group of groups) {
-    const internalRole = ENTRA_GROUP_TO_INTERNAL_ROLE[group];
+    const internalRole = groupToInternalRole[group.trim()];
     if (internalRole) mapped.add(internalRole);
   }
 

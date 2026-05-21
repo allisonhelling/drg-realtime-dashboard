@@ -4,6 +4,7 @@ import { useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
+import AnalyticsSummaryCards from "@/components/AnalyticsSummaryCards";
 import EditIcon from "@mui/icons-material/Edit";
 import CreateDeliverableDialog from "@/components/CreateDeliverableDialog";
 import FilteredRecordsView from "@/components/FilteredRecordsView";
@@ -29,6 +30,17 @@ export default function RecordsPageView({
   const canEditAnyDeliverable = deliverables.some((deliverable) =>
     canCreateDeliverableForProgram(deliverable.programId)
   );
+  const currentYear = new Date().getFullYear();
+  const completed = deliverables.filter(
+    (deliverable) => deliverable.status === "Complete"
+  ).length;
+  const overdue = deliverables.filter((deliverable) =>
+    deliverable.status.startsWith("Overdue")
+  ).length;
+  const submittedThisYear = deliverables.filter((deliverable) => {
+    const submitted = deliverable.lastSubmittedOn || deliverable.lastUpdated;
+    return submitted && new Date(submitted).getFullYear() === currentYear;
+  }).length;
 
   return (
     <>
@@ -65,6 +77,16 @@ export default function RecordsPageView({
             />
           </Box>
         </Box>
+      </Box>
+      <Box sx={{ mb: 2 }}>
+        <AnalyticsSummaryCards
+          cards={[
+            { label: "Total Shown", value: deliverables.length },
+            { label: "Completed", value: completed },
+            { label: "Overdue", value: overdue, alert: overdue > 0 },
+            { label: `Submitted ${currentYear}`, value: submittedThisYear },
+          ]}
+        />
       </Box>
       <FilteredRecordsView
         deliverables={deliverables}
