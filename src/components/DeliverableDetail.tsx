@@ -24,8 +24,10 @@ import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import PersonIcon from "@mui/icons-material/Person";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import EditIcon from "@mui/icons-material/Edit";
+import GavelIcon from "@mui/icons-material/Gavel";
 import type { Deliverable, DeliverableStatus } from "@/lib/models/deliverable";
-import type { DeliverableDocument, FileType } from "@/lib/models/document";
+import type { Approval } from "@/lib/models/approval";
+import type { DeliverableDocument, DocumentRole, FileType } from "@/lib/models/document";
 import type { Program } from "@/lib/models/program";
 import { useRole } from "@/lib/context/role-context";
 import { normalizeEmail } from "@/lib/auth/roles";
@@ -70,6 +72,7 @@ function formatDateTime(iso: string) {
 interface DeliverableDetailProps {
   deliverable: Deliverable;
   documents: DeliverableDocument[];
+  approvals?: Approval[];
   documentCount?: number;
   program: Program | undefined;
   accessLogCountsByDocumentId?: Record<string, number>;
@@ -94,6 +97,7 @@ function getDisplayNameFromEmail(email: string) {
 export default function DeliverableDetail({
   deliverable: d,
   documents,
+  approvals = [],
   documentCount = documents.length,
   program,
   accessLogCountsByDocumentId = {},
@@ -104,6 +108,9 @@ export default function DeliverableDetail({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [approvalComments, setApprovalComments] = useState<Record<string, string>>({});
+  const [approvalFiles, setApprovalFiles] = useState<Record<string, File | null>>({});
+  const [approvalBusyId, setApprovalBusyId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState(d.title);
   const [editDescription, setEditDescription] = useState(d.description);
   const [editDueDate, setEditDueDate] = useState(d.dueDate.slice(0, 10));
@@ -119,6 +126,7 @@ export default function DeliverableDetail({
     canApproveDeliverableDraftForProgram,
     canCreateDeliverableForProgram,
     canDeleteDeliverableForProgram,
+    currentUser,
     role,
   } = useRole();
   const canSubmit =
@@ -126,7 +134,7 @@ export default function DeliverableDetail({
     d.status !== "Draft" &&
     Boolean(
       role &&
-        ["drg-admin", "drg-program-owner", "drg-staff", "external-reviewer"].includes(role)
+        ["drg-admin", "drg-program-owner", "drg-staff"].includes(role)
     );
   const canSeeAccessLog =
     role === "drg-admin" || role === "drg-program-owner" || role === "drg-staff";
@@ -186,6 +194,32 @@ export default function DeliverableDetail({
   }, [assignedToOptions, directoryAssignedToOptions]);
 
   const statusColors = STATUS_COLORS[d.status];
+  const currentUserEmail = normalizeEmail(currentUser?.email);
+  const documentsById = useMemo(
+    () => new Map(documents.map((document) => [document.id, document])),
+    [documents]
+  );
+  const documentsByApprovalId = useMemo(() => {
+    const grouped = new Map<string, DeliverableDocument[]>();
+
+    for (const document of documents) {
+      if (!document.approvalId) continue;
+      grouped.set(document.approvalId, [
+        ...(grouped.get(document.approvalId) ?? []),
+        document,
+      ]);
+    }
+
+    return grouped;
+  }, [documents]);
+  const currentApprovals = approvals.filter((approval) => approval.isCurrent);
+  const reviewerApprovals = currentApprovals.filter(
+    (approval) =>
+      role === "external-reviewer" &&
+      normalizeEmail(approval.reviewerEmail) === currentUserEmail
+  );
+  const canAcknowledgeApprovals =
+    role === "drg-admin" || role === "drg-program-owner" || role === "drg-staff";
 
   useEffect(() => {
     if (!isEditing) return;
@@ -343,6 +377,130 @@ export default function DeliverableDetail({
       setActionError(error instanceof Error ? error.message : "Failed to delete deliverable.");
     } finally {
       setIsDeleting(false);
+    }
+  }
+
+  async function uploadApprovalDocument(
+    approval: Approval,
+    file: File,
+    documentRole: DocumentRole
+  ) {
+    const formData = new FormData();
+    formData.set("file", file);
+    formData.set("documentRole", documentRole);
+
+    const response = await fetch(`/api/approvals/${approval.id}/documents`, {
+      method: "POST",
+      body: formData,
+    });
+    const json = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      throw new Error(json?.error ?? "Failed to upload approval document.");
+    }
+
+    return String(json?.documentId ?? "");
+  }
+
+  async function handleApprovalDecision(
+    approval: Approval,
+    decision: "Approved" | "Rejected"
+  ) {
+    const selectedFile = approvalFiles[approval.id];
+    const comments = approvalComments[approval.id]?.trim() ?? "";
+
+    if (decision === "Approved" && !selectedFile) {
+      setActionError("A Signed Approval PDF is required before approving.");
+      return;
+    }
+
+    if (decision === "Rejected" && !comments) {
+      setActionError("Rejection comments are required.");
+      return;
+    }
+
+    setApprovalBusyId(approval.id);
+    setActionError(null);
+
+    try {
+      let responseDocumentId = approval.responseDocumentId ?? "";
+
+      if (selectedFile) {
+        responseDocumentId = await uploadApprovalDocument(
+          approval,
+          selectedFile,
+          decision === "Approved" ? "Signed Approval" : "Reviewer Response"
+        );
+      }
+
+      const response = await fetch(`/api/approvals/${approval.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          decision,
+          comments,
+          responseDocumentId,
+        }),
+      });
+      const json = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(json?.error ?? "Failed to submit approval decision.");
+      }
+
+      router.refresh();
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "Failed to submit approval decision."
+      );
+    } finally {
+      setApprovalBusyId(null);
+    }
+  }
+
+  async function handleAcknowledgeApproval(approval: Approval) {
+    const responseDocument =
+      (approval.responseDocumentId
+        ? documentsById.get(approval.responseDocumentId)
+        : undefined) ??
+      documentsByApprovalId
+        .get(approval.id)
+        ?.find((document) => document.documentRole === "Signed Approval");
+
+    if (!responseDocument) {
+      setActionError("A Signed Approval PDF is required before acknowledgment.");
+      return;
+    }
+
+    setApprovalBusyId(approval.id);
+    setActionError(null);
+
+    try {
+      const response = await fetch(`/api/approvals/${approval.id}/acknowledge`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          acceptedSubmissionDocumentId: approval.documentId,
+          signedApprovalDocumentId: responseDocument.id,
+        }),
+      });
+      const json = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(json?.error ?? "Failed to acknowledge signed approval.");
+      }
+
+      router.refresh();
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? error.message : "Failed to acknowledge signed approval."
+      );
+    } finally {
+      setApprovalBusyId(null);
     }
   }
 
@@ -589,6 +747,170 @@ export default function DeliverableDetail({
           <Typography variant="caption" sx={{ display: "block", color: "text.secondary", mt: 0.75 }}>
             This will open the submission wizard pre-filled for this deliverable.
           </Typography>
+        </Box>
+      )}
+
+      {currentApprovals.length > 0 && (
+        <Box>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
+            Approval Workflow
+            <Typography component="span" variant="body2" sx={{ color: "text.secondary", ml: 1, fontWeight: 400 }}>
+              ({currentApprovals.length})
+            </Typography>
+          </Typography>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+            {currentApprovals.map((approval) => {
+              const approvalDocuments = documentsByApprovalId.get(approval.id) ?? [];
+              const responseDocument = approval.responseDocumentId
+                ? documentsById.get(approval.responseDocumentId)
+                : approvalDocuments.find((document) =>
+                    document.documentRole === "Signed Approval" ||
+                    document.documentRole === "Reviewer Response"
+                  );
+              const selectedFile = approvalFiles[approval.id];
+              const isReviewerApproval = reviewerApprovals.some(
+                (reviewerApproval) => reviewerApproval.id === approval.id
+              );
+              const isBusy = approvalBusyId === approval.id;
+              const canSubmitDecision =
+                isReviewerApproval && approval.decision === "Pending";
+              const canAcknowledge =
+                canAcknowledgeApprovals &&
+                approval.decision === "Approved" &&
+                Boolean(responseDocument) &&
+                d.status === "Pending Acknowledgment";
+
+              return (
+                <Card key={approval.id} variant="outlined">
+                  <CardContent sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                      <GavelIcon sx={{ color: "text.secondary", fontSize: "1.1rem" }} />
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        {approval.reviewerEmail}
+                      </Typography>
+                      <Chip
+                        label={approval.decision}
+                        size="small"
+                        color={
+                          approval.decision === "Approved"
+                            ? "success"
+                            : approval.decision === "Rejected"
+                            ? "warning"
+                            : "default"
+                        }
+                        variant={approval.decision === "Pending" ? "outlined" : "filled"}
+                      />
+                      {approval.dueDate && (
+                        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                          Due {formatDate(approval.dueDate)}
+                        </Typography>
+                      )}
+                    </Box>
+
+                    {responseDocument && (
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                        <Chip label={responseDocument.documentRole} size="small" variant="outlined" />
+                        <MuiLink
+                          component={NextLink}
+                          href={`/documents/${responseDocument.id}`}
+                          underline="hover"
+                          variant="body2"
+                        >
+                          {responseDocument.fileName}
+                        </MuiLink>
+                      </Box>
+                    )}
+
+                    {approval.comments && (
+                      <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                        {approval.comments}
+                      </Typography>
+                    )}
+
+                    {canSubmitDecision && (
+                      <Box sx={{ display: "flex", flexDirection: "column", gap: 1.25 }}>
+                        <TextField
+                          label="Reviewer comments"
+                          value={approvalComments[approval.id] ?? ""}
+                          onChange={(event) =>
+                            setApprovalComments((current) => ({
+                              ...current,
+                              [approval.id]: event.target.value,
+                            }))
+                          }
+                          multiline
+                          minRows={2}
+                          fullWidth
+                          size="small"
+                        />
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                          <Button
+                            component="label"
+                            variant="outlined"
+                            size="small"
+                            startIcon={<UploadFileIcon />}
+                          >
+                            {selectedFile ? "Change PDF" : "Attach PDF"}
+                            <input
+                              hidden
+                              type="file"
+                              accept=".pdf,application/pdf"
+                              onChange={(event) => {
+                                const file = event.target.files?.[0] ?? null;
+                                setApprovalFiles((current) => ({
+                                  ...current,
+                                  [approval.id]: file,
+                                }));
+                              }}
+                            />
+                          </Button>
+                          {selectedFile && (
+                            <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                              {selectedFile.name}
+                            </Typography>
+                          )}
+                          <Box sx={{ flexGrow: 1 }} />
+                          <Button
+                            color="warning"
+                            variant="outlined"
+                            size="small"
+                            disabled={isBusy}
+                            onClick={() => handleApprovalDecision(approval, "Rejected")}
+                          >
+                            Return
+                          </Button>
+                          <Button
+                            color="success"
+                            variant="contained"
+                            size="small"
+                            disabled={isBusy || !selectedFile}
+                            onClick={() => handleApprovalDecision(approval, "Approved")}
+                          >
+                            Approve
+                          </Button>
+                        </Box>
+                      </Box>
+                    )}
+
+                    {canAcknowledge && (
+                      <Box>
+                        <Button
+                          color="success"
+                          variant="contained"
+                          size="small"
+                          startIcon={<CheckCircleOutlineIcon />}
+                          disabled={isBusy}
+                          onClick={() => handleAcknowledgeApproval(approval)}
+                        >
+                          {isBusy ? "Acknowledging..." : "Acknowledge Signed Approval"}
+                        </Button>
+                      </Box>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </Box>
         </Box>
       )}
 

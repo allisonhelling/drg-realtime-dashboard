@@ -94,7 +94,7 @@ Production deployment checklist:
 - Configure Entra app roles or group claims for the four app roles: DRG admin, program owner, DRG staff, and external reviewer. Store the group object IDs in the matching `ENTRA_*_GROUP_ID` variables.
 - Configure the Dataverse server-to-server app registration with permission to read/write the target environment tables. Set `DATAVERSE_ENVIRONMENT_URL` to the environment URL and use either client secret or certificate credentials.
 - Configure the SharePoint app registration/client credential with Microsoft Graph access to the target site and document library. Set `SHAREPOINT_SITE_ID`, `SHAREPOINT_SITE_URL`, and `SHAREPOINT_DRIVE_ID` for the final library.
-- Configure each Power Automate instant cloud flow with an HTTP trigger, or leave the corresponding `POWER_AUTOMATE_*_URL` empty when intentionally disabled. Flow trigger payload shapes are documented in `docs/power-automate-cloud-flows.md`.
+- Import the Dataverse-triggered Power Automate solution flows and configure the one HTTP-triggered acknowledgment flow URL in `POWER_AUTOMATE_APPROVAL_ACKNOWLEDGED_URL`. The flow responsibilities are documented in `docs/power-automate-cloud-flows.md`.
 - If the app continues to own guest invitations, grant the Graph invitation app registration the required Microsoft Graph application permissions and admin consent. It needs to invite external users and read group membership for `ENTRA_EXTERNAL_REVIEWER_GROUP_ID`.
 - Rebuild the Teams package with the final host and upload the new zip to Teams admin center: `cd teams-app && ./build.sh <deployed-host>`.
 

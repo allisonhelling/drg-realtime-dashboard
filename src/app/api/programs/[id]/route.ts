@@ -13,7 +13,6 @@ import {
   businessRuleResponse,
   errorResponse,
 } from "@/lib/errors/business-rules";
-import { triggerFlow } from "@/lib/power-automate/flows";
 import {
   deleteProgramFolder,
   isSharePointUploadConfigured,
@@ -142,16 +141,6 @@ export async function PATCH(
         programNumber,
         programName: name,
         legacyProgramId: id,
-      });
-    }
-
-    if (isAdmin && nextOwnerUpn !== normalizedExistingOwner) {
-      await triggerFlow("programAccessChanged", {
-        action: "program-owner-changed",
-        programId: id,
-        ownerUpn: nextOwnerUpn,
-        previousOwnerUpn: normalizedExistingOwner,
-        changedByEmail: normalizeEmail(session.user.email),
       });
     }
 

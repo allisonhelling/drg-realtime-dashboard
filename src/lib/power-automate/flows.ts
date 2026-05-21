@@ -1,20 +1,10 @@
 import "server-only";
 import { businessRuleError } from "@/lib/errors/business-rules";
 
-export type FlowName =
-  | "submissionCreated"
-  | "documentDownloaded"
-  | "approvalDecisionSubmitted"
-  | "approvalAcknowledged"
-  | "programAccessChanged";
+export type FlowName = "approvalAcknowledged";
 
 const FLOW_URLS: Record<FlowName, string | undefined> = {
-  submissionCreated: process.env.POWER_AUTOMATE_SUBMISSION_CREATED_URL,
-  documentDownloaded: process.env.POWER_AUTOMATE_DOCUMENT_DOWNLOADED_URL,
-  approvalDecisionSubmitted:
-    process.env.POWER_AUTOMATE_APPROVAL_DECISION_SUBMITTED_URL,
   approvalAcknowledged: process.env.POWER_AUTOMATE_APPROVAL_ACKNOWLEDGED_URL,
-  programAccessChanged: process.env.POWER_AUTOMATE_PROGRAM_ACCESS_CHANGED_URL,
 };
 
 export class PowerAutomateFlowError extends Error {

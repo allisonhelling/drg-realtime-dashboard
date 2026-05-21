@@ -460,43 +460,74 @@ Flow type: Instant cloud flow
 
 Trigger:
 
-- Manually triggered from the app by DRG staff or program owner
-- Inputs:
-  - `drg_deliverable` row ID
-  - accepted `DRG Submission` document row ID
-  - signed approval document row ID
+- Power Automate: `When an HTTP request is received`
+- Method: `POST`
+- The generated HTTP POST URL goes into `POWER_AUTOMATE_APPROVAL_ACKNOWLEDGED_URL`.
+- Request body:
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "deliverableId": { "type": "string" },
+    "acceptedSubmissionDocumentId": { "type": "string" },
+    "signedApprovalDocumentId": { "type": "string" },
+    "approvalId": { "type": "string" },
+    "acknowledgedByEmail": { "type": "string" },
+    "acknowledgedByName": { "type": "string" },
+    "acknowledgedByUserId": { "type": "string" }
+  },
+  "required": [
+    "deliverableId",
+    "acceptedSubmissionDocumentId",
+    "signedApprovalDocumentId",
+    "acknowledgedByEmail"
+  ]
+}
+```
 
 Actions:
 
 - Get deliverable:
   - Action: Dataverse `Get a row by ID`
   - Table name: `drg_deliverables`
-  - Row ID: manual trigger input `drg_deliverable`
+  - Row ID: `deliverableId` from the HTTP request body.
 - Get accepted DRG submission document:
   - Action: Dataverse `Get a row by ID`
   - Table name: `drg_documents`
-  - Row ID: manual trigger input accepted DRG submission document row ID
+  - Row ID: `acceptedSubmissionDocumentId` from the HTTP request body.
 - Get signed approval document:
   - Action: Dataverse `Get a row by ID`
   - Table name: `drg_documents`
-  - Row ID: manual trigger input signed approval document row ID
+  - Row ID: `signedApprovalDocumentId` from the HTTP request body.
+- Optional: resolve the acknowledging Dataverse user:
+  - Action: Dataverse `List rows`
+  - Table name: `Users`
+  - Filter to `internalemailaddress` or `domainname` matching `acknowledgedByEmail`.
+  - Row count: `1`
+  - Use this row for `drg_acknowledgedby` and `drg_actoruser` when found. Do not assume `acknowledgedByUserId` is a Dataverse `systemuser` ID unless the app has been configured to send that exact ID.
 - Condition: validate acknowledgment is allowed:
   - Action: Control `Condition`
   - deliverable status is `Pending Acknowledgment`
+  - accepted document role is `DRG Submission`
   - signed approval document role is `Signed Approval`
-  - user is DRG staff, program owner, or DRG admin
+  - signed approval belongs to the same deliverable/program context as the accepted submission.
+  - user authorization is enforced in the app before the HTTP request; the flow may optionally add a backup check by matching `acknowledgedByEmail` to active program owner/staff access.
   - If yes:
     - Update accepted DRG submission document to Final.
     - Update signed approval document to Final or Reviewed.
     - Update deliverable to Complete, close it, and stamp acknowledgment fields.
-    - Create a document access log row with action Acknowledge.
+    - Create a document access log row with action Acknowledge and result Success.
     - Notify external reviewer(s) and DRG staff that the deliverable is complete, using app links.
+    - Return an HTTP `200` response with body `{ "ok": true, "acknowledged": true }`.
   - If no:
-    - Terminate the flow as Failed or Cancelled.
+    - Return an HTTP `400` or `409` response with body `{ "ok": false, "error": "<reason>" }`.
 
 Notes:
 
 - This should be an explicit user action, not automatic on approval.
+- This must be an HTTP-triggered flow, not a manual button flow, because the Next.js app calls it with `fetch()`.
+- Any email links should use the deployed app URL, for example `{APP_URL}/documents/{signedApprovalDocumentId}`, not a SharePoint direct link.
 
 ## 10. Reviewer Response Viewed By DRG
 

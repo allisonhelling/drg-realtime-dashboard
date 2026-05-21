@@ -1,10 +1,6 @@
 import org.junit.jupiter.api.Test;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TeamsPayloadTest {
   record DocumentUpdatedEvent(
@@ -17,6 +13,19 @@ class TeamsPayloadTest {
 
   interface TeamsClient {
     void postMessage(String channelId, String message);
+  }
+
+  static class RecordingTeamsClient implements TeamsClient {
+    int calls = 0;
+    String channelId = "";
+    String message = "";
+
+    @Override
+    public void postMessage(String channelId, String message) {
+      this.calls += 1;
+      this.channelId = channelId;
+      this.message = message;
+    }
   }
 
   static class TeamsNotifier {
@@ -40,14 +49,13 @@ class TeamsPayloadTest {
         "channel-abc"
     );
 
-    TeamsClient teamsClient = mock(TeamsClient.class);
+    var teamsClient = new RecordingTeamsClient();
 
     TeamsNotifier.notifyTeams(event, teamsClient);
 
-    verify(teamsClient, times(1)).postMessage(
-        eq("channel-abc"),
-        argThat(msg -> msg.contains("Test Document.xlsx") && msg.contains("John Smith"))
-    );
-    verifyNoMoreInteractions(teamsClient);
+    assertEquals(1, teamsClient.calls);
+    assertEquals("channel-abc", teamsClient.channelId);
+    assertTrue(teamsClient.message.contains("Test Document.xlsx"));
+    assertTrue(teamsClient.message.contains("John Smith"));
   }
 }

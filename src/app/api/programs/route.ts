@@ -4,7 +4,6 @@ import { canCreateProgram } from "@/lib/auth/guards";
 import { normalizeEmail } from "@/lib/auth/roles";
 import { createProgram, listPrograms, listVisiblePrograms } from "@/lib/dataverse/programs";
 import { businessRuleResponse, errorResponse } from "@/lib/errors/business-rules";
-import { triggerFlow } from "@/lib/power-automate/flows";
 import {
   ensureProgramFolder,
   isSharePointUploadConfigured,
@@ -100,13 +99,6 @@ export async function POST(request: Request) {
           "Program was created, but SharePoint folder provisioning failed. Document uploads may fail until SharePoint app permissions are fixed.";
       }
     }
-
-    await triggerFlow("programAccessChanged", {
-      action: "program-created",
-      programId,
-      ownerUpn,
-      createdByEmail: creatorUpn,
-    });
 
     return NextResponse.json(
       {

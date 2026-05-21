@@ -84,17 +84,18 @@ PDFs live in a SharePoint document library that the app accesses through the Mic
 
 ## Workflows and notifications
 
-The app emits HTTP requests to five Power Automate cloud flows. Each flow's URL is supplied through environment variables, and the flow logic itself is owned by DRG. We send the JSON payload, you decide what to do with it.
+Most workflow automation is Dataverse-triggered. The app creates or updates the appropriate `drg_*` rows, then Power Automate flows handle status rollups, superseding, field stamping, and notifications. The only app-called HTTP flow is `DRG Acknowledges Signed Approval`, whose URL is supplied through `POWER_AUTOMATE_APPROVAL_ACKNOWLEDGED_URL`.
 
-| Flow | Fires when |
+| Flow area | Fires when |
 |---|---|
-| `submissionCreated` | A staff member submits a deliverable document |
-| `documentDownloaded` | A reviewer opens a document |
-| `approvalDecisionSubmitted` | An approver records a decision |
-| `approvalAcknowledged` | A signed approval is acknowledged |
-| `programAccessChanged` | A program access grant is created or revoked |
+| Submission created | A `DRG Submission` document row is created |
+| Access events | A document access log row is created |
+| Reviewer response / signed approval | A child document row is created with `Reviewer Response` or `Signed Approval` role |
+| Approval decision | A current approval row changes to Approved or Rejected |
+| Acknowledgment | A DRG user explicitly acknowledges a signed approval from the app |
+| Program/access maintenance | Program, program access, and deliverable type rows are created or updated |
 
-A typical flow setup posts a Teams or email notification to the right group of people, but a flow can do anything Power Automate supports, including writing a copy of the deliverable into another SharePoint library or kicking off downstream review workflows. If a flow URL isn't configured, the app logs a no-op and continues, so partial setup doesn't break the rest of the system.
+A typical flow setup posts a Teams or email notification to the right group of people, but a flow can do anything Power Automate supports, including writing a copy of the deliverable into another SharePoint library or kicking off downstream review workflows. Dataverse-triggered flows should link to app URLs, not direct SharePoint file URLs.
 
 ## What DRG IT needs to set up
 
@@ -175,11 +176,7 @@ SHAREPOINT_FOLDER_STRATEGY
 **Power Automate**
 
 ```
-POWER_AUTOMATE_SUBMISSION_CREATED_URL
-POWER_AUTOMATE_DOCUMENT_DOWNLOADED_URL
-POWER_AUTOMATE_APPROVAL_DECISION_SUBMITTED_URL
 POWER_AUTOMATE_APPROVAL_ACKNOWLEDGED_URL
-POWER_AUTOMATE_PROGRAM_ACCESS_CHANGED_URL
 ```
 
 **Microsoft Graph for B2B invitations**

@@ -7,7 +7,6 @@ import {
 } from "@/lib/dataverse/document-access-logs";
 import { getVisibleDocumentById } from "@/lib/dataverse/documents";
 import { getProgramById } from "@/lib/dataverse/programs";
-import { triggerFlow } from "@/lib/power-automate/flows";
 import { fetchSharePointFile } from "@/lib/sharepoint/files";
 
 function getSafeDownloadFileName(fileName: string) {
@@ -60,15 +59,6 @@ export async function GET(
       action: "Download",
     });
   }
-
-  await triggerFlow("documentDownloaded", {
-    documentId: document.id,
-    programId: document.programId,
-    deliverableId: document.deliverableId,
-    documentRole: document.documentRole,
-    actorEmail: session.user.email,
-    sharePointItemId: document.sharePointItemId,
-  });
 
   try {
     const fileResponse = await fetchSharePointFile({

@@ -6,7 +6,6 @@ import { createProgramAccess, listProgramAccess, revokeProgramAccess } from "@/l
 import { getProgramById } from "@/lib/dataverse/programs";
 import { businessRuleResponse, errorResponse } from "@/lib/errors/business-rules";
 import { getProgramCollaboratorPrincipal } from "@/lib/graph/invitations";
-import { triggerFlow } from "@/lib/power-automate/flows";
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -81,14 +80,6 @@ export async function POST(
       accessRole: collaborator.accessRole,
       entraObjectId: collaborator.id,
     });
-    await triggerFlow("programAccessChanged", {
-      action: "granted",
-      programId,
-      email: access.email,
-      accessRole: access.accessRole,
-      grantedByEmail: session.user.email,
-    });
-
     return NextResponse.json({
       email: access.email,
       granted: true,
@@ -141,13 +132,6 @@ export async function DELETE(
       programId,
       email,
     });
-    await triggerFlow("programAccessChanged", {
-      action: "revoked",
-      programId,
-      email,
-      revokedByEmail: session.user.email,
-    });
-
     return NextResponse.json({ email, revoked: true });
   } catch (error) {
     return errorResponse(error, {
